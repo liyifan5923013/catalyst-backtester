@@ -1,0 +1,15 @@
+{
+  "title": "EVM Swap - Buy $100 of ETH on Base",
+  "graph": {
+    "nodes": [
+      {
+        "id": "buy-eth-on-base",
+        "kind": "action",
+        "subtype": "swap",
+        "config": { "from_asset": "USDC", "to_asset": "ETH", "amount": "100", "chain": "base" },
+        "enabled": true
+      }
+    ],
+    "edges": []
+  }
+}

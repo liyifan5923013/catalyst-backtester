@@ -1,0 +1,15 @@
+{
+  "title": "Hyperliquid Spot - Buy $100 of ETH",
+  "graph": {
+    "nodes": [
+      {
+        "id": "buy-eth-spot",
+        "kind": "action",
+        "subtype": "swap",
+        "config": { "from_asset": "USDC", "to_asset": "ETH", "amount": "100", "chain": "hyperliquid" },
+        "enabled": true
+      }
+    ],
+    "edges": []
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "title": "EVM Yield - Deposit 250 USDC into Aave",
+  "graph": {
+    "nodes": [
+      { "id": "deposit-usdc-into-aave", "kind": "action", "subtype": "yield_deposit",
+        "config": { "chain": "base", "protocol": "aave", "pool": "usdc", "asset": "USDC", "amount": "250" }, "enabled": true }
+    ],
+    "edges": []
+  }
+}
