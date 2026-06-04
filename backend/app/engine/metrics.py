@@ -44,7 +44,10 @@ def _sharpe(equities: List[float], interval: str) -> float:
         return 0.0
     secs = INTERVAL_SECONDS.get(interval, 3600)
     periods_per_year = (365 * 24 * 3600) / secs
-    return (mean / std) * math.sqrt(periods_per_year)
+    sharpe = (mean / std) * math.sqrt(periods_per_year)
+    # Near-deterministic equity (e.g. yield-only) produces a vanishing stdev and
+    # an absurd ratio; clamp to a sane, interpretable range.
+    return max(-100.0, min(100.0, sharpe))
 
 
 def _win_rate_pct(trades: List[Trade]) -> Optional[float]:

@@ -290,10 +290,20 @@ class MarketData:
             master = close.index if master is None else master.union(close.index)
 
         if master is None or len(master) == 0:
-            raise RuntimeError(
-                "No market data returned for the requested range. "
-                "Check the symbols, chains, and date range."
-            )
+            if not reqs:
+                # Pure time-based strategy (e.g. yield-only, no price/signal
+                # nodes): synthesize a tick timeline from the requested range.
+                step = pd.Timedelta(milliseconds=INTERVAL_MS[interval])
+                master = pd.date_range(
+                    start=pd.Timestamp(start_ms, unit="ms", tz="UTC"),
+                    end=pd.Timestamp(end_ms, unit="ms", tz="UTC"),
+                    freq=step,
+                )
+            else:
+                raise RuntimeError(
+                    "No market data returned for the requested range. "
+                    "Check the symbols, chains, and date range."
+                )
 
         master = master[(master >= pd.Timestamp(start_ms, unit="ms", tz="UTC"))
                         & (master <= pd.Timestamp(end_ms, unit="ms", tz="UTC"))]
