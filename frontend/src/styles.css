@@ -283,6 +283,21 @@ textarea:focus {
   cursor: not-allowed;
 }
 
+.share-btn {
+  background: var(--panel-2);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 9px;
+  font-weight: 500;
+  font-size: 13px;
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+.share-btn:hover {
+  border-color: var(--accent-blue);
+}
+
 /* graph input */
 .graph-input-header {
   display: flex;

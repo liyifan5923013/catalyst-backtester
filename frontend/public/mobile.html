@@ -77,13 +77,29 @@
 
   .hint { color: var(--muted); font-size: 13px; text-align: center; margin-top: 8px; }
 
+  .topbar { position: sticky; top: 0; z-index: 50; background: rgba(13,17,23,.9); backdrop-filter: blur(8px); border-bottom: 1px solid var(--border); }
+  .topbar .inner { max-width: 1040px; margin: 0 auto; padding: 10px 24px; display: flex; gap: 18px; align-items: center; }
+  .topbar .brand { font-weight: 700; color: var(--text); margin-right: auto; font-size: 14.5px; }
+  .topbar a { color: var(--muted); font-size: 14px; font-weight: 600; }
+  .topbar a:hover { color: var(--text); text-decoration: none; }
+  .topbar a.active { color: var(--accent); }
+
   @media (max-width: 560px) {
     .dim { display: none; }
     .stage { padding: 24px 0 40px; transform-origin: top center; }
+    .topbar .inner { gap: 14px; overflow-x: auto; white-space: nowrap; padding: 10px 16px; }
   }
 </style>
 </head>
 <body>
+  <nav class="topbar"><div class="inner">
+    <a class="brand" href="/landing.html">Catalyst</a>
+    <a href="/">App</a>
+    <a href="/help.html">Help</a>
+    <a href="/overview.html">Overview</a>
+    <a class="active" href="/mobile.html">Mobile</a>
+    <a href="/docs">API</a>
+  </div></nav>
   <header>
     <div class="wrap">
       <div class="eyebrow">Catalyst</div>

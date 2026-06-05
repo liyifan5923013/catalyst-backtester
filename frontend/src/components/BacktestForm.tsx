@@ -1,3 +1,4 @@
+import { useState } from "react";
 import type { Config } from "../App";
 import type { ExampleGraph } from "../types";
 import {
@@ -17,6 +18,7 @@ interface Props {
   canRun: boolean;
   compare: CompareState;
   onCompareChange: (c: CompareState) => void;
+  onShare: () => string;
   hideRunButton?: boolean;
 }
 
@@ -38,9 +40,33 @@ export function BacktestForm({
   canRun,
   compare,
   onCompareChange,
+  onShare,
   hideRunButton = false,
 }: Props) {
   const cmpRange = effectiveCompareRange(config, compare);
+  const [copied, setCopied] = useState(false);
+
+  async function handleShareClick() {
+    const url = onShare();
+    try {
+      await navigator.clipboard.writeText(url);
+    } catch {
+      const ta = document.createElement("textarea");
+      ta.value = url;
+      ta.style.position = "fixed";
+      ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.select();
+      try {
+        document.execCommand("copy");
+      } catch {
+        /* clipboard unavailable; URL is already in the address bar */
+      }
+      document.body.removeChild(ta);
+    }
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 1500);
+  }
 
   return (
     <div className="form">
@@ -168,6 +194,10 @@ export function BacktestForm({
           {loading ? "Running…" : compare.enabled ? "Run & compare" : "Run backtest"}
         </button>
       )}
+
+      <button type="button" className="share-btn" onClick={handleShareClick}>
+        {copied ? "Copied!" : "Copy share link"}
+      </button>
     </div>
   );
 }

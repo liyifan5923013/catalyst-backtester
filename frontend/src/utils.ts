@@ -1,6 +1,8 @@
 // Small date + formatting helpers. All dates are plain ISO "YYYY-MM-DD" strings
 // interpreted in UTC, matching the backend (which works entirely in UTC).
 
+import type { Config } from "./App";
+
 export interface Range {
   start: string;
   end: string;
@@ -81,3 +83,74 @@ export const fmtMoney = (n: number) =>
 
 export const fmtPct = (n: number, signed = true) =>
   `${signed && n >= 0 ? "+" : ""}${n.toFixed(2)}%`;
+
+export interface ShareState {
+  graphText: string;
+  config: Config;
+  compare: CompareState;
+}
+
+function bytesToBase64(bytes: Uint8Array): string {
+  let binary = "";
+  const chunk = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunk) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
+  }
+  return btoa(binary);
+}
+
+function base64ToBytes(b64: string): Uint8Array {
+  const binary = atob(b64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return bytes;
+}
+
+function isConfig(v: unknown): v is Config {
+  if (typeof v !== "object" || v === null) return false;
+  const c = v as Record<string, unknown>;
+  return (
+    typeof c.start === "string" &&
+    typeof c.end === "string" &&
+    typeof c.interval === "string" &&
+    typeof c.initial_capital === "number"
+  );
+}
+
+function isCompareState(v: unknown): v is CompareState {
+  if (typeof v !== "object" || v === null) return false;
+  const c = v as Record<string, unknown>;
+  return (
+    typeof c.enabled === "boolean" &&
+    (c.mode === "previous" || c.mode === "yoy" || c.mode === "custom") &&
+    typeof c.start === "string" &&
+    typeof c.end === "string"
+  );
+}
+
+function isShareState(v: unknown): v is ShareState {
+  if (typeof v !== "object" || v === null) return false;
+  const s = v as Record<string, unknown>;
+  return typeof s.graphText === "string" && isConfig(s.config) && isCompareState(s.compare);
+}
+
+/** Encode shareable backtest state as a URL-safe (base64url) string. Unicode-safe. */
+export function encodeShareState(state: ShareState): string {
+  const json = JSON.stringify(state);
+  const bytes = new TextEncoder().encode(json);
+  return bytesToBase64(bytes).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+/** Decode a base64url share string back into state. Never throws; returns null when malformed. */
+export function decodeShareState(encoded: string): ShareState | null {
+  try {
+    if (!encoded) return null;
+    let b64 = encoded.replace(/-/g, "+").replace(/_/g, "/");
+    while (b64.length % 4 !== 0) b64 += "=";
+    const json = new TextDecoder().decode(base64ToBytes(b64));
+    const parsed = JSON.parse(json) as unknown;
+    return isShareState(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}

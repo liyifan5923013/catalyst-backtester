@@ -7,8 +7,10 @@ import { ResultsDashboard } from "./components/ResultsDashboard";
 import { useIsMobile } from "./hooks/useIsMobile";
 import {
   COMPARE_LABELS,
+  decodeShareState,
   describeGraph,
   effectiveCompareRange,
+  encodeShareState,
   type CompareState,
 } from "./utils";
 
@@ -20,6 +22,13 @@ export interface Config {
 }
 
 type MobileTab = "setup" | "results";
+
+function readSharedState() {
+  if (typeof window === "undefined") return null;
+  const hash = window.location.hash.startsWith("#") ? window.location.hash.slice(1) : window.location.hash;
+  const encoded = new URLSearchParams(hash).get("s");
+  return encoded ? decodeShareState(encoded) : null;
+}
 
 const DEFAULT_GRAPH = JSON.stringify(
   {
@@ -40,20 +49,24 @@ const DEFAULT_GRAPH = JSON.stringify(
 
 export default function App() {
   const isMobile = useIsMobile();
-  const [graphText, setGraphText] = useState(DEFAULT_GRAPH);
+  const shared = useMemo(() => readSharedState(), []);
+  const [graphText, setGraphText] = useState(() => shared?.graphText ?? DEFAULT_GRAPH);
   const [examples, setExamples] = useState<ExampleGraph[]>([]);
   const [config, setConfig] = useState<Config>(() => {
+    if (shared) return shared.config;
     const iso = (d: Date) => d.toISOString().slice(0, 10);
     const end = new Date();
     const start = new Date(end.getTime() - 120 * 24 * 3600 * 1000);
     return { start: iso(start), end: iso(end), interval: "1h", initial_capital: 10000 };
   });
-  const [compare, setCompare] = useState<CompareState>(() => ({
-    enabled: false,
-    mode: "previous",
-    start: "",
-    end: "",
-  }));
+  const [compare, setCompare] = useState<CompareState>(() =>
+    shared?.compare ?? {
+      enabled: false,
+      mode: "previous",
+      start: "",
+      end: "",
+    }
+  );
   const [result, setResult] = useState<BacktestResult | null>(null);
   const [compareResult, setCompareResult] = useState<BacktestResult | null>(null);
   const [compareLabel, setCompareLabel] = useState<string | null>(null);
@@ -166,6 +179,17 @@ export default function App() {
     if (ex) setGraphText(JSON.stringify(ex.graph, null, 2));
   }
 
+  function handleShare(): string {
+    const encoded = encodeShareState({ graphText, config, compare });
+    const url = `${window.location.origin}${window.location.pathname}#s=${encoded}`;
+    try {
+      window.history.replaceState(null, "", url);
+    } catch {
+      window.location.hash = `s=${encoded}`;
+    }
+    return url;
+  }
+
   const formProps = {
     config,
     onChange: setConfig,
@@ -176,6 +200,7 @@ export default function App() {
     canRun: !parsedGraph.error,
     compare,
     onCompareChange: setCompare,
+    onShare: handleShare,
   };
 
   const resultsPanel = (
@@ -210,6 +235,9 @@ export default function App() {
             <p>Strategy backtests · UTC</p>
           </div>
           <div className="header-links">
+            <a className="header-link" href="/landing.html">
+              Home
+            </a>
             <a className="header-link" href="/help.html">
               Help
             </a>
@@ -276,6 +304,12 @@ export default function App() {
             <p>Replay a Catalyst strategy graph against historical market data. All times in UTC.</p>
           </div>
           <div className="header-links">
+            <a className="header-link" href="/landing.html">
+              Home
+            </a>
+            <a className="header-link" href="/mobile.html">
+              Mobile
+            </a>
             <a className="header-link" href="/help.html">
               Help
             </a>
