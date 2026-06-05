@@ -9,6 +9,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import { useIsMobile } from "../hooks/useIsMobile";
 import type { EquityPoint } from "../types";
 
 interface Props {
@@ -29,6 +30,8 @@ function formatAxisTick(label: string): string {
 export function EquityChart({ data, comparison, comparisonLabel }: Props) {
   const comparing = !!comparison && comparison.length > 0;
   const [expanded, setExpanded] = useState(false);
+  const isMobile = useIsMobile();
+  const chartHeight = expanded ? "100%" : isMobile ? 280 : 360;
 
   useEffect(() => {
     if (!expanded) return;
@@ -72,7 +75,7 @@ export function EquityChart({ data, comparison, comparisonLabel }: Props) {
           </button>
         </div>
         <div className="chart-body">
-          <ResponsiveContainer width="100%" height={expanded ? "100%" : 360}>
+          <ResponsiveContainer width="100%" height={chartHeight}>
             <LineChart data={chartData} margin={{ top: 8, right: 56, left: 16, bottom: 12 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#2a2f3a" />
               <XAxis

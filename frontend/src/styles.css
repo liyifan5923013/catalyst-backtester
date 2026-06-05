@@ -634,3 +634,228 @@ th.num {
     grid-template-columns: repeat(2, 1fr);
   }
 }
+
+/* ------------------------------------------------------------------ */
+/* Mobile app shell (≤768px): bottom tabs + sticky run bar            */
+/* ------------------------------------------------------------------ */
+@media (max-width: 768px) {
+  .app {
+    padding: 12px 12px 0;
+    max-width: none;
+  }
+
+  .metrics-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .metric {
+    padding: 12px;
+  }
+
+  .metric-value {
+    font-size: 17px;
+  }
+
+  .metric-delta {
+    font-size: 10px;
+  }
+
+  .summary-head {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+  }
+
+  .chart-head {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .chart-expand {
+    align-self: flex-end;
+    min-height: 44px;
+    padding: 10px 14px;
+  }
+
+  .chart-fullscreen {
+    inset: 0;
+    border-radius: 0;
+  }
+
+  .field-row {
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .seg {
+    flex-direction: column;
+  }
+
+  .seg-btn {
+    min-height: 44px;
+    font-size: 13px;
+    padding: 10px;
+  }
+
+  input,
+  select,
+  textarea {
+    font-size: 16px; /* prevents iOS zoom on focus */
+    min-height: 44px;
+  }
+
+  textarea {
+    min-height: 120px;
+  }
+
+  .run-btn {
+    min-height: 48px;
+    font-size: 16px;
+  }
+
+  .empty-state {
+    padding: 48px 12px;
+  }
+
+  .event {
+    flex-wrap: wrap;
+  }
+}
+
+.mobile-app {
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+  padding-bottom: 0;
+}
+
+.mobile-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.mobile-header h1 {
+  font-size: 20px;
+  margin-bottom: 2px;
+}
+
+.mobile-header p {
+  margin: 0;
+  font-size: 12px;
+}
+
+.header-link {
+  flex-shrink: 0;
+  color: var(--accent-blue);
+  font-size: 13px;
+  font-weight: 500;
+  text-decoration: none;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel);
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+}
+
+.mobile-body {
+  flex: 1;
+  overflow-y: auto;
+  padding-bottom: 8px;
+}
+
+.mobile-panel {
+  margin-bottom: 0;
+}
+
+.mobile-app .mobile-body {
+  /* space for bottom nav + optional run bar */
+  padding-bottom: calc(72px + env(safe-area-inset-bottom, 0px));
+}
+
+.mobile-app .mobile-tab-setup-active .mobile-body {
+  padding-bottom: calc(136px + env(safe-area-inset-bottom, 0px));
+}
+
+.mobile-run-bar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: calc(56px + env(safe-area-inset-bottom, 0px));
+  padding: 10px 12px;
+  background: linear-gradient(180deg, transparent, var(--bg) 24%);
+  z-index: 40;
+}
+
+.run-btn-mobile {
+  width: 100%;
+  margin: 0;
+}
+
+.mobile-nav {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  background: var(--panel);
+  border-top: 1px solid var(--border);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  z-index: 50;
+}
+
+.mobile-nav-btn {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-height: 56px;
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  position: relative;
+}
+
+.mobile-nav-btn.active {
+  color: var(--accent-blue);
+}
+
+.mobile-nav-icon {
+  font-size: 18px;
+  line-height: 1;
+}
+
+.mobile-nav-dot {
+  position: absolute;
+  top: 8px;
+  right: calc(50% - 22px);
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: var(--accent);
+}
+
+.graph-toggle {
+  background: none;
+  border: none;
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+  padding: 0;
+  cursor: pointer;
+  text-align: left;
+}
+
+.mobile-app .chart-card .recharts-responsive-container {
+  min-height: 260px;
+}

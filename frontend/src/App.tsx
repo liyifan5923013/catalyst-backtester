@@ -4,6 +4,7 @@ import type { BacktestResult, ExampleGraph, SummaryResponse } from "./types";
 import { BacktestForm } from "./components/BacktestForm";
 import { GraphInput } from "./components/GraphInput";
 import { ResultsDashboard } from "./components/ResultsDashboard";
+import { useIsMobile } from "./hooks/useIsMobile";
 import {
   COMPARE_LABELS,
   describeGraph,
@@ -17,6 +18,8 @@ export interface Config {
   interval: string;
   initial_capital: number;
 }
+
+type MobileTab = "setup" | "results";
 
 const DEFAULT_GRAPH = JSON.stringify(
   {
@@ -36,6 +39,7 @@ const DEFAULT_GRAPH = JSON.stringify(
 );
 
 export default function App() {
+  const isMobile = useIsMobile();
   const [graphText, setGraphText] = useState(DEFAULT_GRAPH);
   const [examples, setExamples] = useState<ExampleGraph[]>([]);
   const [config, setConfig] = useState<Config>(() => {
@@ -59,6 +63,7 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [collapsed, setCollapsed] = useState(false);
+  const [mobileTab, setMobileTab] = useState<MobileTab>("setup");
 
   useEffect(() => {
     fetchExamples().then(setExamples).catch(() => setExamples([]));
@@ -75,6 +80,7 @@ export default function App() {
   async function handleRun() {
     if (parsedGraph.error || !parsedGraph.value) {
       setError(`Invalid graph JSON: ${parsedGraph.error}`);
+      if (isMobile) setMobileTab("setup");
       return;
     }
     setLoading(true);
@@ -83,7 +89,6 @@ export default function App() {
     setCompareWarning(null);
     try {
       const graph = parsedGraph.value;
-      // The primary run is the one that matters; if it fails, surface the error.
       const primary = await runBacktest({ graph, ...config });
 
       let cmp: BacktestResult | null = null;
@@ -95,8 +100,6 @@ export default function App() {
         if (!range.start || !range.end) {
           cmpWarn = "Pick a comparison start and end date to enable the comparison.";
         } else {
-          // A comparison failure (e.g. no data that far back) must NOT discard
-          // the valid primary result — degrade gracefully with a warning.
           try {
             cmp = await runBacktest({
               graph,
@@ -116,14 +119,15 @@ export default function App() {
       setCompareResult(cmp);
       setCompareLabel(cmp ? cmpLabel : null);
       setCompareWarning(cmpWarn);
+      if (isMobile) setMobileTab("results");
 
-      // Fire-and-forget the AI summary; results render immediately regardless.
       void loadSummary(primary, cmp, cmp ? cmpLabel : null, graph);
     } catch (e) {
       setError((e as Error).message);
       setResult(null);
       setCompareResult(null);
       setCompareWarning(null);
+      if (isMobile) setMobileTab("results");
     } finally {
       setLoading(false);
     }
@@ -162,6 +166,102 @@ export default function App() {
     if (ex) setGraphText(JSON.stringify(ex.graph, null, 2));
   }
 
+  const formProps = {
+    config,
+    onChange: setConfig,
+    examples,
+    onSelectExample: handleSelectExample,
+    onRun: handleRun,
+    loading,
+    canRun: !parsedGraph.error,
+    compare,
+    onCompareChange: setCompare,
+  };
+
+  const resultsPanel = (
+    <>
+      {error && <div className="alert error">{error}</div>}
+      {loading && <div className="alert info">Running backtest. Fetching market data may take a few seconds…</div>}
+      {!loading && compareWarning && <div className="alert warn">{compareWarning}</div>}
+      {!loading && !result && !error && (
+        <div className="empty-state">
+          <h2>No results yet</h2>
+          <p>Pick an example or paste a graph, choose a date range, and run a backtest.</p>
+        </div>
+      )}
+      {result && (
+        <ResultsDashboard
+          result={result}
+          comparison={compareResult}
+          comparisonLabel={compareLabel}
+          summary={summary}
+          summaryLoading={summaryLoading}
+        />
+      )}
+    </>
+  );
+
+  if (isMobile) {
+    return (
+      <div className={`app mobile-app ${mobileTab === "setup" ? "mobile-tab-setup-active" : ""}`}>
+        <header className="app-header mobile-header">
+          <div>
+            <h1>Catalyst Backtester</h1>
+            <p>Strategy backtests · UTC</p>
+          </div>
+          <a className="header-link" href="/overview.html">
+            About
+          </a>
+        </header>
+
+        <div className="mobile-body">
+          {mobileTab === "setup" && (
+            <section className="panel mobile-panel">
+              <BacktestForm {...formProps} hideRunButton />
+              <GraphInput
+                value={graphText}
+                onChange={setGraphText}
+                jsonError={parsedGraph.error}
+                compact
+                collapsible
+              />
+            </section>
+          )}
+
+          {mobileTab === "results" && <section className="panel mobile-panel results">{resultsPanel}</section>}
+        </div>
+
+        {mobileTab === "setup" && (
+          <div className="mobile-run-bar">
+            <button className="run-btn run-btn-mobile" onClick={handleRun} disabled={loading || !!parsedGraph.error}>
+              {loading ? "Running…" : compare.enabled ? "Run & compare" : "Run backtest"}
+            </button>
+          </div>
+        )}
+
+        <nav className="mobile-nav" aria-label="Main">
+          <button
+            type="button"
+            className={`mobile-nav-btn ${mobileTab === "setup" ? "active" : ""}`}
+            onClick={() => setMobileTab("setup")}
+          >
+            <span className="mobile-nav-icon">⚙</span>
+            Setup
+          </button>
+          <button
+            type="button"
+            className={`mobile-nav-btn ${mobileTab === "results" ? "active" : ""}`}
+            onClick={() => setMobileTab("results")}
+          >
+            <span className="mobile-nav-icon">📊</span>
+            Results
+            {result && <span className="mobile-nav-dot" />}
+          </button>
+        </nav>
+      </div>
+    );
+  }
+
   return (
     <div className="app">
       <header className="app-header">
@@ -180,17 +280,7 @@ export default function App() {
             >
               ‹ Hide
             </button>
-            <BacktestForm
-              config={config}
-              onChange={setConfig}
-              examples={examples}
-              onSelectExample={handleSelectExample}
-              onRun={handleRun}
-              loading={loading}
-              canRun={!parsedGraph.error}
-              compare={compare}
-              onCompareChange={setCompare}
-            />
+            <BacktestForm {...formProps} />
             <GraphInput value={graphText} onChange={setGraphText} jsonError={parsedGraph.error} />
           </aside>
         )}
@@ -201,24 +291,7 @@ export default function App() {
               ☰ Show inputs
             </button>
           )}
-          {error && <div className="alert error">{error}</div>}
-          {loading && <div className="alert info">Running backtest. Fetching market data may take a few seconds…</div>}
-          {!loading && compareWarning && <div className="alert warn">{compareWarning}</div>}
-          {!loading && !result && !error && (
-            <div className="empty-state">
-              <h2>No results yet</h2>
-              <p>Pick an example or paste a graph, choose a date range, and run a backtest.</p>
-            </div>
-          )}
-          {result && (
-            <ResultsDashboard
-              result={result}
-              comparison={compareResult}
-              comparisonLabel={compareLabel}
-              summary={summary}
-              summaryLoading={summaryLoading}
-            />
-          )}
+          {resultsPanel}
         </main>
       </div>
     </div>

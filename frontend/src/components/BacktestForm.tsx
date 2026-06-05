@@ -17,6 +17,7 @@ interface Props {
   canRun: boolean;
   compare: CompareState;
   onCompareChange: (c: CompareState) => void;
+  hideRunButton?: boolean;
 }
 
 const INTERVALS = ["15m", "1h", "4h", "1d"];
@@ -37,6 +38,7 @@ export function BacktestForm({
   canRun,
   compare,
   onCompareChange,
+  hideRunButton = false,
 }: Props) {
   const cmpRange = effectiveCompareRange(config, compare);
 
@@ -161,9 +163,11 @@ export function BacktestForm({
         )}
       </div>
 
-      <button className="run-btn" onClick={onRun} disabled={loading || !canRun}>
-        {loading ? "Running…" : compare.enabled ? "Run & compare" : "Run backtest"}
-      </button>
+      {!hideRunButton && (
+        <button className="run-btn" onClick={onRun} disabled={loading || !canRun}>
+          {loading ? "Running…" : compare.enabled ? "Run & compare" : "Run backtest"}
+        </button>
+      )}
     </div>
   );
 }

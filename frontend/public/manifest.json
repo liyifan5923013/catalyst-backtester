@@ -1,0 +1,18 @@
+{
+  "name": "Catalyst Backtester",
+  "short_name": "Backtester",
+  "description": "Replay Catalyst strategy graphs against historical market data",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0d1017",
+  "theme_color": "#0d1017",
+  "orientation": "any",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}
