@@ -84,6 +84,96 @@ export const fmtMoney = (n: number) =>
 export const fmtPct = (n: number, signed = true) =>
   `${signed && n >= 0 ? "+" : ""}${n.toFixed(2)}%`;
 
+// -- Display time zones -------------------------------------------------------
+// Backend timestamps are UTC. These control only how result times are rendered;
+// the analysis-period date inputs remain UTC calendar dates.
+
+export const TIME_ZONES: { id: string; label: string }[] = [
+  { id: "UTC", label: "UTC" },
+  { id: "local", label: "Local (browser)" },
+  { id: "America/Los_Angeles", label: "Los Angeles (Pacific)" },
+  { id: "America/Denver", label: "Denver (Mountain)" },
+  { id: "America/Chicago", label: "Chicago (Central)" },
+  { id: "America/New_York", label: "New York (Eastern)" },
+  { id: "America/Sao_Paulo", label: "São Paulo" },
+  { id: "Europe/London", label: "London" },
+  { id: "Europe/Berlin", label: "Berlin / Paris" },
+  { id: "Europe/Moscow", label: "Moscow" },
+  { id: "Asia/Dubai", label: "Dubai" },
+  { id: "Asia/Kolkata", label: "Mumbai / Kolkata" },
+  { id: "Asia/Singapore", label: "Singapore" },
+  { id: "Asia/Shanghai", label: "Shanghai / Beijing" },
+  { id: "Asia/Tokyo", label: "Tokyo" },
+  { id: "Australia/Sydney", label: "Sydney" },
+];
+
+/** Resolve the special "local" id to the browser's IANA zone. */
+export function resolveTz(tz: string): string {
+  if (tz === "local") {
+    try {
+      return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+    } catch {
+      return "UTC";
+    }
+  }
+  return tz || "UTC";
+}
+
+/** Parse a (UTC) backend timestamp that may lack a zone suffix. */
+export function parseUtc(iso: string): Date {
+  let s = iso.trim().replace(" ", "T");
+  if (!/[zZ]$/.test(s) && !/[+-]\d{2}:?\d{2}$/.test(s)) s += "Z";
+  return new Date(s);
+}
+
+/** Short time-zone abbreviation for labels, e.g. "UTC", "PST", "GMT+8". */
+export function tzAbbrev(tz: string, ref: Date = new Date()): string {
+  const zone = resolveTz(tz);
+  try {
+    const parts = new Intl.DateTimeFormat("en-US", {
+      timeZone: zone,
+      timeZoneName: "short",
+    }).formatToParts(ref);
+    return parts.find((p) => p.type === "timeZoneName")?.value ?? zone;
+  } catch {
+    return "UTC";
+  }
+}
+
+/** Short "Mon D" date in the given zone (for chart axis ticks). */
+export function fmtDateTz(iso: string, tz: string): string {
+  const d = parseUtc(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  try {
+    return new Intl.DateTimeFormat("en-US", {
+      timeZone: resolveTz(tz),
+      month: "short",
+      day: "numeric",
+    }).format(d);
+  } catch {
+    return iso;
+  }
+}
+
+/** Full "Mon D, YYYY HH:MM" in the given zone (24h) for tooltips/tables. */
+export function fmtDateTimeTz(iso: string, tz: string): string {
+  const d = parseUtc(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  try {
+    return new Intl.DateTimeFormat("en-US", {
+      timeZone: resolveTz(tz),
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    }).format(d);
+  } catch {
+    return iso;
+  }
+}
+
 export interface ShareState {
   graphText: string;
   config: Config;

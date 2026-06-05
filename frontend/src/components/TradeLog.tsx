@@ -1,13 +1,15 @@
 import type { Trade } from "../types";
+import { fmtDateTimeTz, tzAbbrev } from "../utils";
 
 interface Props {
   trades: Trade[];
+  timeZone?: string;
 }
 
 const fmt = (n: number, d = 2) =>
   n.toLocaleString(undefined, { minimumFractionDigits: d, maximumFractionDigits: d });
 
-export function TradeLog({ trades }: Props) {
+export function TradeLog({ trades, timeZone = "UTC" }: Props) {
   if (trades.length === 0) {
     return <div className="trade-log empty">No trades were executed.</div>;
   }
@@ -18,7 +20,7 @@ export function TradeLog({ trades }: Props) {
         <table>
           <thead>
             <tr>
-              <th>Time</th>
+              <th>Time ({tzAbbrev(timeZone)})</th>
               <th>Action</th>
               <th>Side</th>
               <th>Symbol</th>
@@ -32,7 +34,7 @@ export function TradeLog({ trades }: Props) {
           <tbody>
             {trades.map((t, i) => (
               <tr key={i}>
-                <td className="mono">{t.t.slice(0, 16).replace("T", " ")}</td>
+                <td className="mono">{fmtDateTimeTz(t.t, timeZone)}</td>
                 <td>
                   <span className={`tag ${t.kind}`}>{t.kind}</span>
                   <span className="chain">{t.chain}</span>

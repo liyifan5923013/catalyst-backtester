@@ -4,6 +4,7 @@ import type { ExampleGraph } from "../types";
 import {
   COMPARE_LABELS,
   effectiveCompareRange,
+  TIME_ZONES,
   type CompareMode,
   type CompareState,
 } from "../utils";
@@ -19,6 +20,8 @@ interface Props {
   compare: CompareState;
   onCompareChange: (c: CompareState) => void;
   onShare: () => string;
+  timeZone: string;
+  onTimeZoneChange: (tz: string) => void;
   hideRunButton?: boolean;
 }
 
@@ -41,6 +44,8 @@ export function BacktestForm({
   compare,
   onCompareChange,
   onShare,
+  timeZone,
+  onTimeZoneChange,
   hideRunButton = false,
 }: Props) {
   const cmpRange = effectiveCompareRange(config, compare);
@@ -85,7 +90,7 @@ export function BacktestForm({
       <div className="field-group">
         <div className="field-group-head">
           <span>Analysis period</span>
-          <span className="tz-badge" title="All dates and times are interpreted and displayed in UTC.">
+          <span className="tz-badge" title="Start and End are UTC calendar dates. Result times are shown in the display time zone selected below.">
             UTC
           </span>
         </div>
@@ -133,6 +138,17 @@ export function BacktestForm({
           />
         </label>
       </div>
+
+      <label className="field">
+        <span>Display time zone</span>
+        <select value={timeZone} onChange={(e) => onTimeZoneChange(e.target.value)}>
+          {TIME_ZONES.map((tz) => (
+            <option key={tz.id} value={tz.id}>
+              {tz.label}
+            </option>
+          ))}
+        </select>
+      </label>
 
       <div className="field-group">
         <label className="compare-toggle">

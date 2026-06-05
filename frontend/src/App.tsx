@@ -11,6 +11,7 @@ import {
   describeGraph,
   effectiveCompareRange,
   encodeShareState,
+  tzAbbrev,
   type CompareState,
 } from "./utils";
 
@@ -77,6 +78,7 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [collapsed, setCollapsed] = useState(false);
   const [mobileTab, setMobileTab] = useState<MobileTab>("setup");
+  const [timeZone, setTimeZone] = useState("UTC");
 
   useEffect(() => {
     fetchExamples().then(setExamples).catch(() => setExamples([]));
@@ -201,6 +203,8 @@ export default function App() {
     compare,
     onCompareChange: setCompare,
     onShare: handleShare,
+    timeZone,
+    onTimeZoneChange: setTimeZone,
   };
 
   const resultsPanel = (
@@ -221,6 +225,7 @@ export default function App() {
           comparisonLabel={compareLabel}
           summary={summary}
           summaryLoading={summaryLoading}
+          timeZone={timeZone}
         />
       )}
     </>
@@ -232,7 +237,7 @@ export default function App() {
         <header className="app-header mobile-header">
           <div>
             <h1>Catalyst Backtester</h1>
-            <p>Strategy backtests · UTC</p>
+            <p>Strategy backtests · {tzAbbrev(timeZone)}</p>
           </div>
           <div className="header-links">
             <a className="header-link" href="/landing.html">
@@ -301,7 +306,7 @@ export default function App() {
         <div className="app-header-main">
           <div>
             <h1>Catalyst Backtester</h1>
-            <p>Replay a Catalyst strategy graph against historical market data. All times in UTC.</p>
+            <p>Replay a Catalyst strategy graph against historical market data. Result times shown in {tzAbbrev(timeZone)}.</p>
           </div>
           <div className="header-links">
             <a className="header-link" href="/landing.html">

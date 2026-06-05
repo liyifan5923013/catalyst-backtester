@@ -11,24 +11,20 @@ import {
 } from "recharts";
 import { useIsMobile } from "../hooks/useIsMobile";
 import type { EquityPoint } from "../types";
+import { fmtDateTimeTz, fmtDateTz, tzAbbrev } from "../utils";
 
 interface Props {
   data: EquityPoint[];
   comparison?: EquityPoint[] | null;
   comparisonLabel?: string | null;
+  timeZone?: string;
 }
 
 const axisColor = "#8b93a7";
 
-/** Compact UTC label for the x-axis (full timestamp stays in the tooltip). */
-function formatAxisTick(label: string): string {
-  const d = new Date(label.replace(" ", "T") + "Z");
-  if (Number.isNaN(d.getTime())) return label;
-  return d.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
-}
-
-export function EquityChart({ data, comparison, comparisonLabel }: Props) {
+export function EquityChart({ data, comparison, comparisonLabel, timeZone = "UTC" }: Props) {
   const comparing = !!comparison && comparison.length > 0;
+  const tzAbbr = tzAbbrev(timeZone);
   const [expanded, setExpanded] = useState(false);
   const isMobile = useIsMobile();
   const chartHeight = expanded ? "100%" : isMobile ? 280 : 360;
@@ -61,8 +57,8 @@ export function EquityChart({ data, comparison, comparisonLabel }: Props) {
             <h3>Portfolio equity</h3>
             <span className="chart-sub">
               {comparing
-                ? "Two periods overlaid by elapsed time (aligned at start). X-axis: current period dates (UTC)."
-                : "Mark-to-market account value over time. X-axis: time (UTC)."}
+                ? `Two periods overlaid by elapsed time (aligned at start). X-axis: current period dates (${tzAbbr}).`
+                : `Mark-to-market account value over time. X-axis: time (${tzAbbr}).`}
             </span>
           </div>
           <button
@@ -81,7 +77,7 @@ export function EquityChart({ data, comparison, comparisonLabel }: Props) {
               <XAxis
                 dataKey="t"
                 tick={{ fontSize: 11, fill: axisColor }}
-                tickFormatter={formatAxisTick}
+                tickFormatter={(label: string) => fmtDateTz(label, timeZone)}
                 minTickGap={expanded ? 40 : 56}
                 interval="preserveStartEnd"
                 height={36}
@@ -118,6 +114,7 @@ export function EquityChart({ data, comparison, comparisonLabel }: Props) {
               <Tooltip
                 contentStyle={{ background: "#161a22", border: "1px solid #2a2f3a", borderRadius: 8 }}
                 labelStyle={{ color: "#cbd2e0" }}
+                labelFormatter={(label: string) => `${fmtDateTimeTz(label, timeZone)} ${tzAbbr}`}
                 formatter={(value: number | string, name: string) => [value, name]}
               />
               <Legend

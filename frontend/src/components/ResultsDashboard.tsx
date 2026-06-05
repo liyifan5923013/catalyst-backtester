@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { BacktestResult, Metrics, SummaryResponse } from "../types";
 import { EquityChart } from "./EquityChart";
 import { TradeLog } from "./TradeLog";
-import { fmtMoney } from "../utils";
+import { fmtDateTimeTz, fmtMoney, tzAbbrev } from "../utils";
 
 interface Props {
   result: BacktestResult;
@@ -10,6 +10,7 @@ interface Props {
   comparisonLabel?: string | null;
   summary: SummaryResponse | null;
   summaryLoading: boolean;
+  timeZone?: string;
 }
 
 type Kind = "money" | "pct" | "ratio" | "num";
@@ -95,10 +96,18 @@ function fmtValue(v: number, kind: Kind, signed = false): string {
   }
 }
 
-export function ResultsDashboard({ result, comparison, comparisonLabel, summary, summaryLoading }: Props) {
+export function ResultsDashboard({
+  result,
+  comparison,
+  comparisonLabel,
+  summary,
+  summaryLoading,
+  timeZone = "UTC",
+}: Props) {
   const m = result.metrics;
   const cmp = comparison?.metrics ?? null;
   const label = comparisonLabel ?? "comparison";
+  const tzAbbr = tzAbbrev(timeZone);
 
   return (
     <div className="dashboard">
@@ -129,6 +138,7 @@ export function ResultsDashboard({ result, comparison, comparisonLabel, summary,
         data={result.equity_curve}
         comparison={comparison?.equity_curve ?? null}
         comparisonLabel={comparisonLabel}
+        timeZone={timeZone}
       />
 
       {result.events.length > 0 && (
@@ -137,7 +147,7 @@ export function ResultsDashboard({ result, comparison, comparisonLabel, summary,
           <ul>
             {result.events.slice(0, 50).map((e, i) => (
               <li key={i} className={`event ${e.level}`}>
-                <span className="mono">{e.t.slice(0, 16).replace("T", " ")} UTC</span>
+                <span className="mono">{fmtDateTimeTz(e.t, timeZone)} {tzAbbr}</span>
                 <span className={`level ${e.level}`}>{e.level}</span>
                 <span>{e.message}</span>
               </li>
@@ -146,7 +156,7 @@ export function ResultsDashboard({ result, comparison, comparisonLabel, summary,
         </div>
       )}
 
-      <TradeLog trades={result.trades} />
+      <TradeLog trades={result.trades} timeZone={timeZone} />
     </div>
   );
 }
