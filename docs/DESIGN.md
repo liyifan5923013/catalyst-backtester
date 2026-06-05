@@ -52,7 +52,7 @@ frontend (input + reporting), deployed as a single Docker image.
 | Question | Decision |
 | --- | --- |
 | How is granularity set? | User picks an interval (`15m`/`1h`/`4h`/`1d`). **One candle = one tick.** |
-| How to fetch data? | Free public APIs (Binance mirror for EVM spot; Hyperliquid for HL candles + funding). Cached to parquet by default; an opt-in TimescaleDB read-through store (`DATABASE_URL`) fetches only missing gaps. |
+| How to fetch data? | Free public APIs (Binance mirror for EVM spot; Hyperliquid for HL candles + funding; Yahoo/Alpha Vantage for equities). Cached to parquet by default; an opt-in TimescaleDB read-through store (`DATABASE_URL`) fetches only missing gaps on demand. No pre-warm required, though an opt-in scheduled pre-warm (`PREWARM_ENABLED`) can keep a watchlist warm. |
 | How is the engine called? | `POST /api/backtest` with `{graph, start, end, interval, initial_capital}` → `{metrics, equity_curve, trades, events}`. |
 | Gas / tx time? | Flat, configurable cost model (gas per EVM tx, fee bps, slippage bps). Fills at candle close, no latency. |
 | Failed transactions? | Balance/margin checked; insufficient funds → action skipped + `warning` event (never silent, never negative). Perps can be liquidated. |
@@ -144,6 +144,7 @@ flowchart TB
   subgraph data [Data layer]
     prov[providers.py<br/>Binance + Hyperliquid]
     repo[repository.py<br/>read-through gap-fill]
+    prewarm[prewarm.py<br/>scheduled watchlist<br/>opt-in]
     cache[(Parquet cache<br/>default / HF demo)]
     db[(Postgres / TimescaleDB<br/>opt-in via DATABASE_URL)]
   end
@@ -171,6 +172,7 @@ flowchart TB
   repo -->|fetch missing gaps| hl
   prov --> binance
   prov --> hl
+  prewarm -->|PREWARM_ENABLED, timer| repo
 
   summary --> sum
   sum -->|OPENAI_API_KEY set| llm
@@ -275,6 +277,7 @@ sequenceDiagram
 | [data/store.py](../backend/app/data/store.py) | `candles`/`funding`/`coverage` tables + upsert/get/coverage CRUD. |
 | [data/repository.py](../backend/app/data/repository.py) | Read-through cache: gap math, staleness horizon, provider gap-fill. |
 | [data/backfill.py](../backend/app/data/backfill.py) | CLI to pre-warm symbols/intervals into the store. |
+| [data/prewarm.py](../backend/app/data/prewarm.py) | Opt-in scheduled watchlist pre-warm (`PREWARM_ENABLED`), reusing the read-through gap-fill. |
 | [engine/graph.py](../backend/app/engine/graph.py) | Parse/validate graph; compute root actions, signal/action children, and data requirements. |
 | [engine/signals.py](../backend/app/engine/signals.py) | `price_threshold` evaluation + rising-edge tracking. |
 | [engine/portfolio.py](../backend/app/engine/portfolio.py) | Spot balances, `PerpPosition`, `YieldPosition`; USD valuation; yield accrual. |
@@ -367,10 +370,18 @@ tested without a database. Net effect: each candle is fetched from the exchange 
 reused across any overlapping date range, instead of re-keying a whole parquet blob per range.
 
 #### Ingestion
+There is **no required pre-warm step** — read-through fetches whatever is missing the
+first time it is requested. Pre-warming is purely a latency optimization with two entry points,
+both of which reuse the *same* gap-fill path (and so are idempotent):
 - **Read-through (on demand):** the path above runs transparently during a backtest.
 - **Manual backfill:** [backfill.py](../backend/app/data/backfill.py)
   (`python -m app.data.backfill --source binance --symbol ETH --interval 1h --start ... --end ...`,
   or `--funding` for Hyperliquid) pre-warms the store through the same gap-fill logic.
+- **Scheduled pre-warm (opt-in):** [prewarm.py](../backend/app/data/prewarm.py) is an in-process
+  loop (App Runner has no native cron) that warms a watchlist on boot and every
+  `PREWARM_INTERVAL_HOURS`. It is gated behind `PREWARM_ENABLED=1` and a configured
+  `DATABASE_URL`, and the watchlist is overridable via `PREWARM_WATCHLIST` (JSON). Because gap-fill
+  is idempotent, running it across multiple instances is safe.
 
 #### Operational cost (why it is opt-in)
 The cost is exactly what an MVP avoids: a running DB service, schema/migrations

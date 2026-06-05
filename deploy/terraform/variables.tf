@@ -105,3 +105,16 @@ variable "alpha_vantage_api_key" {
   default     = ""
   sensitive   = true
 }
+
+# -- Scheduled pre-warm (optional) --------------------------------------------
+variable "prewarm_enabled" {
+  description = "Enable the in-process scheduled data pre-warm loop. Read-through fetches on demand regardless; this just keeps the watchlist warm. Requires a persistence backend (DATABASE_URL)."
+  type        = bool
+  default     = false
+}
+
+variable "prewarm_interval_hours" {
+  description = "How often the pre-warm loop refreshes the watchlist, in hours."
+  type        = number
+  default     = 24
+}

@@ -136,7 +136,7 @@
     <div class="stats">
       <div class="stat"><div class="n">4</div><div class="l">action types: swap · perp · yield · signal</div></div>
       <div class="stat"><div class="n">15</div><div class="l">example strategy graphs</div></div>
-      <div class="stat"><div class="n">51</div><div class="l">automated tests passing</div></div>
+      <div class="stat"><div class="n">66</div><div class="l">automated tests passing</div></div>
       <div class="stat"><div class="n">1</div><div class="l">image → HF demo &amp; AWS prod</div></div>
     </div>
   </div>
@@ -235,10 +235,10 @@
     <h2><span class="num">03</span>Persistence layer (post-MVP data layer)</h2>
     <p class="sub">Opt-in via <code>DATABASE_URL</code>; falls back to a parquet cache so the demo stays zero-ops.</p>
     <div class="grid c2">
-      <div class="card"><h3>Read-through caching</h3><p>A backtest serves cached candles/funding from the store and fetches only the <b>missing time gaps</b> from the providers, then persists them. Each candle is fetched once and reused across any overlapping range.</p></div>
+      <div class="card"><h3>Read-through caching</h3><p>A backtest serves cached candles/funding from the store and fetches only the <b>missing time gaps</b> from the providers, then persists them. Each candle is fetched once and reused across any overlapping range. <b>No pre-warm is required</b> — data is pulled lazily on first request.</p></div>
       <div class="card"><h3>Coverage + staleness</h3><p>Coverage segments distinguish "fetched but empty" from "never fetched". A freshness horizon (<code>now − interval</code>) always refreshes the still-forming tail. The set arithmetic is pure and unit-tested.</p></div>
       <div class="card"><h3>Schema + migrations</h3><p>Alembic creates <code>candles</code> / <code>funding</code> / <code>coverage</code>; promotes to <b>Timescale hypertables</b> when the extension exists, degrades to plain Postgres (RDS) otherwise.</p></div>
-      <div class="card"><h3>Backfill CLI</h3><p><code>python -m app.data.backfill …</code> pre-warms symbols/intervals through the same gap-fill path. Local dev runs Postgres via docker-compose.</p></div>
+      <div class="card"><h3>Backfill + scheduled pre-warm</h3><p><code>python -m app.data.backfill …</code> pre-warms symbols on demand; an opt-in in-process loop (<code>PREWARM_ENABLED</code>) keeps a watchlist warm on a timer. Both reuse the same idempotent gap-fill path. Local dev runs Postgres via docker-compose.</p></div>
     </div>
   </div>
 </section>
@@ -280,12 +280,13 @@
     <h2><span class="num">06</span>Testing &amp; what's next</h2>
     <div class="grid c2">
       <div class="card">
-        <h3>Testing — 51 tests, no network</h3>
+        <h3>Testing — 66 tests, no network</h3>
         <ul class="tight">
           <li><b>Graph:</b> parsing, trigger structure, validation errors</li>
           <li><b>Execution:</b> swap/perp/yield math, insufficient-funds paths</li>
           <li><b>Examples:</b> all 15 graphs on deterministic synthetic data</li>
           <li><b>Persistence:</b> gap/coverage/staleness logic + DB-gated round-trip</li>
+          <li><b>Pre-warm:</b> watchlist parsing + scheduled loop fault isolation</li>
           <li><b>AI summary:</b> rule-based fallback narrative + comparison-trend wording</li>
         </ul>
       </div>

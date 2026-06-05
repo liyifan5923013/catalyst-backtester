@@ -361,8 +361,10 @@ resource "aws_apprunner_service" "app" {
         port = var.app_port
 
         runtime_environment_variables = {
-          OPENAI_MODEL    = var.openai_model
-          OPENAI_BASE_URL = var.openai_base_url
+          OPENAI_MODEL           = var.openai_model
+          OPENAI_BASE_URL        = var.openai_base_url
+          PREWARM_ENABLED        = var.prewarm_enabled ? "1" : "0"
+          PREWARM_INTERVAL_HOURS = tostring(var.prewarm_interval_hours)
         }
 
         runtime_environment_secrets = merge(
