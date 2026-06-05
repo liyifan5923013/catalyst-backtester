@@ -158,6 +158,18 @@ resource "aws_secretsmanager_secret_version" "openai" {
   secret_string = var.openai_api_key
 }
 
+# Optional: Alpha Vantage key for US equity fallback (Yahoo is primary).
+resource "aws_secretsmanager_secret" "alpha_vantage" {
+  count = var.alpha_vantage_api_key == "" ? 0 : 1
+  name  = "${local.name}/alpha-vantage-api-key"
+}
+
+resource "aws_secretsmanager_secret_version" "alpha_vantage" {
+  count         = var.alpha_vantage_api_key == "" ? 0 : 1
+  secret_id     = aws_secretsmanager_secret.alpha_vantage[0].id
+  secret_string = var.alpha_vantage_api_key
+}
+
 # ---------------------------------------------------------------------------
 # IAM: App Runner ECR-pull (access) role and runtime (instance) role
 # ---------------------------------------------------------------------------
@@ -202,6 +214,7 @@ data "aws_iam_policy_document" "apprunner_secrets" {
     resources = concat(
       [aws_secretsmanager_secret.database_url.arn],
       var.openai_api_key == "" ? [] : [aws_secretsmanager_secret.openai[0].arn],
+      var.alpha_vantage_api_key == "" ? [] : [aws_secretsmanager_secret.alpha_vantage[0].arn],
     )
   }
 }
@@ -355,6 +368,7 @@ resource "aws_apprunner_service" "app" {
         runtime_environment_secrets = merge(
           { DATABASE_URL = aws_secretsmanager_secret.database_url.arn },
           var.openai_api_key == "" ? {} : { OPENAI_API_KEY = aws_secretsmanager_secret.openai[0].arn },
+          var.alpha_vantage_api_key == "" ? {} : { ALPHA_VANTAGE_API_KEY = aws_secretsmanager_secret.alpha_vantage[0].arn },
         )
       }
     }

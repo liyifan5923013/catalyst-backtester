@@ -97,3 +97,11 @@ variable "openai_base_url" {
   type        = string
   default     = "https://api.openai.com/v1"
 }
+
+# -- Equity data (optional) ---------------------------------------------------
+variable "alpha_vantage_api_key" {
+  description = "Alpha Vantage API key for US equity fallback data. Yahoo Finance is the primary source; this is used when Yahoo returns empty. Set via TF_VAR_alpha_vantage_api_key; do not commit."
+  type        = string
+  default     = ""
+  sensitive   = true
+}

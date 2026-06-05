@@ -498,6 +498,8 @@ Key points:
 - `OPENAI_API_KEY` is an **optional** Secrets Manager secret (created by Terraform only when
   `TF_VAR_openai_api_key` is supplied) for AI summaries; `OPENAI_MODEL`/`OPENAI_BASE_URL` are
   plain runtime env. With no key, the app uses the rule-based summary fallback.
+- `ALPHA_VANTAGE_API_KEY` is an **optional** Secrets Manager secret (`TF_VAR_alpha_vantage_api_key`)
+  for US equity fallback data when Yahoo Finance returns empty.
 - RDS is **plain Postgres** (no Timescale extension on RDS); the schema degrades to regular
   tables. Point `DATABASE_URL` at Timescale Cloud to get hypertables, no code change.
 - **CI/CD** ([.github/workflows/deploy.yml](../.github/workflows/deploy.yml)): push to `main`
