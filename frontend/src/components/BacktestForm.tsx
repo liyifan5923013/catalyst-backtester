@@ -22,8 +22,8 @@ interface Props {
 const INTERVALS = ["15m", "1h", "4h", "1d"];
 
 const MODES: { id: CompareMode; label: string; hint: string }[] = [
-  { id: "previous", label: "环比 · Prev. period", hint: "Immediately preceding window of equal length" },
-  { id: "yoy", label: "同比 · Year-over-year", hint: "Same calendar window one year earlier" },
+  { id: "previous", label: "Previous period", hint: "Immediately preceding window of equal length (period-over-period)" },
+  { id: "yoy", label: "Year-over-year", hint: "Same calendar window one year earlier" },
   { id: "custom", label: "Custom", hint: "Pick any comparison range" },
 ];
 
