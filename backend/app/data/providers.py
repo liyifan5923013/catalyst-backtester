@@ -44,6 +44,11 @@ INTERVAL_MS = {
     "1d": 24 * 60 * 60_000,
 }
 
+# Upper bound on candles per run. Guards the request timeout and response size
+# against pathological ranges (e.g. multi-year minute-level). One candle = one
+# simulation tick, so this also bounds the simulator loop.
+MAX_TICKS = 300_000
+
 EVM_CHAINS = {"base", "ethereum", "eth", "arbitrum", "optimism", "polygon", "evm"}
 
 
@@ -341,6 +346,14 @@ class MarketData:
         start_ms, end_ms = to_ms(start), to_ms(end)
         if end_ms <= start_ms:
             raise ValueError("`end` must be after `start`.")
+
+        n_ticks = (end_ms - start_ms) // INTERVAL_MS[interval]
+        if n_ticks > MAX_TICKS:
+            raise ValueError(
+                f"Requested range is too large: ~{n_ticks:,} {interval} candles "
+                f"(max {MAX_TICKS:,}). Narrow the date range or choose a coarser "
+                f"granularity."
+            )
 
         binance = BinanceProvider()
         hl = HyperliquidProvider()

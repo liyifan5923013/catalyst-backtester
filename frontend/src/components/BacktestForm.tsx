@@ -4,6 +4,9 @@ import type { ExampleGraph } from "../types";
 import {
   COMPARE_LABELS,
   effectiveCompareRange,
+  estimateTicks,
+  MAX_TICKS,
+  rangeWarning,
   TIME_ZONES,
   tzAbbrev,
   type CompareMode,
@@ -52,6 +55,8 @@ export function BacktestForm({
   const cmpRange = effectiveCompareRange(config, compare);
   const [copied, setCopied] = useState(false);
   const tzAbbr = tzAbbrev(timeZone);
+  const sizeWarning = rangeWarning(config.start, config.end, config.interval);
+  const overCap = estimateTicks(config.start, config.end, config.interval) > MAX_TICKS;
 
   async function handleShareClick() {
     const url = onShare();
@@ -145,6 +150,10 @@ export function BacktestForm({
         </label>
       </div>
 
+      {sizeWarning && (
+        <p className={`range-warning ${overCap ? "error" : ""}`}>{sizeWarning}</p>
+      )}
+
       <label className="field">
         <span>Time zone</span>
         <select value={timeZone} onChange={(e) => onTimeZoneChange(e.target.value)}>
@@ -212,7 +221,7 @@ export function BacktestForm({
       </div>
 
       {!hideRunButton && (
-        <button className="run-btn" onClick={onRun} disabled={loading || !canRun}>
+        <button className="run-btn" onClick={onRun} disabled={loading || !canRun || overCap}>
           {loading ? "Running…" : compare.enabled ? "Run & compare" : "Run backtest"}
         </button>
       )}

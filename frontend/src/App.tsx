@@ -11,6 +11,8 @@ import {
   describeGraph,
   effectiveCompareRange,
   encodeShareState,
+  estimateTicks,
+  MAX_TICKS,
   tzAbbrev,
   zonedDateToUtcIso,
   type CompareState,
@@ -96,6 +98,14 @@ export default function App() {
   async function handleRun() {
     if (parsedGraph.error || !parsedGraph.value) {
       setError(`Invalid graph JSON: ${parsedGraph.error}`);
+      if (isMobile) setMobileTab("setup");
+      return;
+    }
+    if (estimateTicks(config.start, config.end, config.interval) > MAX_TICKS) {
+      setError(
+        `Range too large for ${config.interval} granularity (over ${MAX_TICKS.toLocaleString()} candles). ` +
+          `Narrow the dates or pick a coarser granularity.`
+      );
       if (isMobile) setMobileTab("setup");
       return;
     }
@@ -277,7 +287,11 @@ export default function App() {
 
         {mobileTab === "setup" && (
           <div className="mobile-run-bar">
-            <button className="run-btn run-btn-mobile" onClick={handleRun} disabled={loading || !!parsedGraph.error}>
+            <button
+              className="run-btn run-btn-mobile"
+              onClick={handleRun}
+              disabled={loading || !!parsedGraph.error || estimateTicks(config.start, config.end, config.interval) > MAX_TICKS}
+            >
               {loading ? "Running…" : compare.enabled ? "Run & compare" : "Run backtest"}
             </button>
           </div>

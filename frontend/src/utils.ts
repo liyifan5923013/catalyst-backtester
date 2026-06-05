@@ -21,6 +21,43 @@ export function dayCount(start: string, end: string): number {
   return Math.max(1, Math.round(ms / 86_400_000));
 }
 
+// Mirrors the backend INTERVAL_MS / MAX_TICKS so we can warn before submitting.
+export const INTERVAL_MS: Record<string, number> = {
+  "1m": 60_000,
+  "5m": 5 * 60_000,
+  "15m": 15 * 60_000,
+  "30m": 30 * 60_000,
+  "1h": 60 * 60_000,
+  "4h": 4 * 60 * 60_000,
+  "1d": 24 * 60 * 60_000,
+};
+
+export const MAX_TICKS = 300_000;
+const SOFT_TICKS = 50_000;
+
+/** Estimated number of candles/ticks for a range + interval (0 if unknown). */
+export function estimateTicks(start: string, end: string, interval: string): number {
+  const step = INTERVAL_MS[interval];
+  if (!step || !start || !end) return 0;
+  const ms = toUTC(end).getTime() - toUTC(start).getTime();
+  if (!Number.isFinite(ms) || ms <= 0) return 0;
+  return Math.floor(ms / step);
+}
+
+/** A UI warning string when a run is large/too large, else null. */
+export function rangeWarning(start: string, end: string, interval: string): string | null {
+  const n = estimateTicks(start, end, interval);
+  if (n === 0) return null;
+  const pretty = n.toLocaleString();
+  if (n > MAX_TICKS) {
+    return `This range is ~${pretty} ${interval} candles, above the ${MAX_TICKS.toLocaleString()} limit. Narrow the dates or pick a coarser granularity.`;
+  }
+  if (n > SOFT_TICKS) {
+    return `Heads up: ~${pretty} ${interval} candles. This can take a while on the first run; a coarser granularity or shorter range is faster.`;
+  }
+  return null;
+}
+
 /** Immediately preceding window of equal length (环比 / period-over-period). */
 export function previousPeriod({ start, end }: Range): Range {
   const len = dayCount(start, end);
