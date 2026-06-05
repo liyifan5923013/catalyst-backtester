@@ -385,23 +385,75 @@ textarea:focus {
   align-items: center;
   gap: 5px;
 }
+.info {
+  position: relative;
+  display: inline-flex;
+}
 .info-dot {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 13px;
-  height: 13px;
+  width: 14px;
+  height: 14px;
+  padding: 0;
   border-radius: 999px;
   border: 1px solid var(--border);
+  background: transparent;
   color: var(--muted);
   font-size: 9px;
   font-style: italic;
   font-weight: 700;
-  cursor: help;
+  font-family: inherit;
+  cursor: pointer;
 }
 .info-dot:hover {
   color: var(--text);
   border-color: var(--accent-blue);
+}
+.info.open .info-dot {
+  color: var(--text);
+  border-color: var(--accent-blue);
+  background: rgba(96, 165, 250, 0.15);
+}
+.info-tip {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 60;
+  width: max-content;
+  max-width: 240px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: #0b1220;
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 400;
+  line-height: 1.45;
+  text-align: left;
+  white-space: normal;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 0.12s ease;
+}
+.info-tip::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 5px solid transparent;
+  border-top-color: var(--border);
+}
+.info:hover .info-tip,
+.info.open .info-tip {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
 }
 .metric-value {
   font-size: 20px;

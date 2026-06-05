@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from "react";
 import type { BacktestResult, Metrics, SummaryResponse } from "../types";
 import { EquityChart } from "./EquityChart";
 import { TradeLog } from "./TradeLog";
@@ -186,15 +187,54 @@ function MetricCard({
 
   return (
     <div className="metric">
-      <span className="metric-label" title={spec.help}>
+      <span className="metric-label">
         {spec.label}
-        <span className="info-dot" title={spec.help}>
-          i
-        </span>
+        <InfoDot text={spec.help} label={spec.label} />
       </span>
       <span className={`metric-value ${tone}`}>{fmtValue(value, spec.kind)}</span>
       {deltaEl}
     </div>
+  );
+}
+
+function InfoDot({ text, label }: { text: string; label: string }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLSpanElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function onDocDown(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") setOpen(false);
+    }
+    document.addEventListener("mousedown", onDocDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDocDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  return (
+    <span className={`info ${open ? "open" : ""}`} ref={ref}>
+      <button
+        type="button"
+        className="info-dot"
+        aria-label={`What is ${label}?`}
+        aria-expanded={open}
+        onClick={(e) => {
+          e.stopPropagation();
+          setOpen((v) => !v);
+        }}
+      >
+        i
+      </button>
+      <span className="info-tip" role="tooltip">
+        {text}
+      </span>
+    </span>
   );
 }
 
