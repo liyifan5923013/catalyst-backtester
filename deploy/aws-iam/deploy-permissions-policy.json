@@ -1,0 +1,35 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "EcrAuth",
+      "Effect": "Allow",
+      "Action": "ecr:GetAuthorizationToken",
+      "Resource": "*"
+    },
+    {
+      "Sid": "EcrPushPull",
+      "Effect": "Allow",
+      "Action": [
+        "ecr:BatchCheckLayerAvailability",
+        "ecr:InitiateLayerUpload",
+        "ecr:UploadLayerPart",
+        "ecr:CompleteLayerUpload",
+        "ecr:PutImage",
+        "ecr:BatchGetImage",
+        "ecr:GetDownloadUrlForLayer"
+      ],
+      "Resource": "arn:aws:ecr:REGION:ACCOUNT_ID:repository/catalyst-backtester"
+    },
+    {
+      "Sid": "AppRunnerDeploy",
+      "Effect": "Allow",
+      "Action": [
+        "apprunner:StartDeployment",
+        "apprunner:DescribeService",
+        "apprunner:ListOperations"
+      ],
+      "Resource": "arn:aws:apprunner:REGION:ACCOUNT_ID:service/catalyst-backtester/*"
+    }
+  ]
+}
