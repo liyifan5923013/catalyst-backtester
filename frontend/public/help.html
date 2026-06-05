@@ -189,7 +189,7 @@
       <p>Catalyst Backtester answers one question: <em>if this strategy had run in the past, what would have happened?</em></p>
       <ol class="steps">
         <li><b>Load an example</b> from the dropdown (easiest), or paste your own Catalyst graph JSON.</li>
-        <li><b>Pick a date range</b> and granularity (<code>15m</code>, <code>1h</code>, <code>4h</code>, <code>1d</code>). All dates are <b>UTC</b>.</li>
+        <li><b>Pick a date range</b> and granularity (<code>1m</code>, <code>5m</code>, <code>15m</code>, <code>1h</code>, <code>4h</code>, <code>1d</code>). Minute-level is precise but slower over long ranges, and intraday equity data only covers recent dates. Times follow your selected <b>time zone</b>.</li>
         <li><b>Click Run backtest</b>. The engine fetches historical prices, simulates each candle as one tick, and returns metrics + charts.</li>
         <li><b>Optionally enable comparison</b> to run a second window (previous period or year-over-year) and see deltas.</li>
       </ol>

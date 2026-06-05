@@ -26,7 +26,7 @@ interface Props {
   hideRunButton?: boolean;
 }
 
-const INTERVALS = ["15m", "1h", "4h", "1d"];
+const INTERVALS = ["1m", "5m", "15m", "1h", "4h", "1d"];
 
 const MODES: { id: CompareMode; label: string; hint: string }[] = [
   { id: "previous", label: "Previous period", hint: "Immediately preceding window of equal length (period-over-period)" },
@@ -121,7 +121,11 @@ export function BacktestForm({
       <div className="field-row">
         <label className="field">
           <span>Granularity</span>
-          <select value={config.interval} onChange={(e) => onChange({ ...config, interval: e.target.value })}>
+          <select
+            value={config.interval}
+            title="One candle = one simulation tick. Minute-level (1m/5m) is precise but slower over long ranges; equity (stock) data only offers intraday candles for recent dates."
+            onChange={(e) => onChange({ ...config, interval: e.target.value })}
+          >
             {INTERVALS.map((i) => (
               <option key={i} value={i}>
                 {i}
