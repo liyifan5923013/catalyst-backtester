@@ -25,7 +25,7 @@ from .execution import (
 )
 from .graph import build_runtime
 from .metrics import compute_metrics
-from .portfolio import STABLES, Portfolio
+from .portfolio import Portfolio
 from .signals import SignalState
 
 EXECUTORS = {
@@ -61,9 +61,7 @@ def run_backtest(req: BacktestRequest, market_data=None) -> BacktestResult:
     state = {"ts": timeline[0]}
 
     def price_of(symbol: str) -> float:
-        if symbol.upper() in STABLES:
-            return 1.0
-        return md.signal_price(symbol, state["ts"])
+        return md.price_for_balance(symbol, state["ts"])
 
     def exec_price(symbol: str, chain: str) -> float:
         return md.price(symbol, chain, state["ts"])
@@ -134,8 +132,10 @@ def run_backtest(req: BacktestRequest, market_data=None) -> BacktestResult:
         for sid in runtime.signal_ids:
             node = runtime.node(sid)
             symbol = str(node.config.get("symbol", ""))
+            market = str(node.config.get("market", "crypto")).lower()
+            venue = "equity" if market in ("equity", "stock") else None
             try:
-                price = md.signal_price(symbol, ts)
+                price = md.signal_price(symbol, ts, venue=venue)
             except KeyError:
                 continue
             current = SignalState.evaluate(node, price)

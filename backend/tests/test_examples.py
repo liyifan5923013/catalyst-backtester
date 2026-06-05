@@ -1,4 +1,4 @@
-"""Run all 15 example graphs against deterministic synthetic data (offline)."""
+"""Run all example graphs against deterministic synthetic data (offline)."""
 import json
 import os
 

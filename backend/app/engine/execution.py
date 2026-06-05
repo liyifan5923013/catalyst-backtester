@@ -11,6 +11,7 @@ from dataclasses import dataclass, field
 from typing import Callable, List, Optional
 
 from ..models import CostModel, Event, Node, Trade
+from ..data.equity_providers import EQUITY_CHAINS
 from .portfolio import STABLES, PerpPosition, Portfolio, YieldPosition
 
 BPS = 1e4
@@ -51,10 +52,20 @@ def execute_swap(node: Node, pf: Portfolio, costs: CostModel, ctx: ExecContext) 
     to = str(cfg.get("to_asset", "")).upper()
     chain = str(cfg.get("chain", "base")).lower()
     is_hl = chain == "hyperliquid"
+    is_equity = chain in EQUITY_CHAINS
 
-    fee_bps = costs.hl_taker_fee_bps if is_hl else costs.evm_swap_fee_bps
-    slip_bps = costs.hl_slippage_bps if is_hl else costs.evm_slippage_bps
-    gas = 0.0 if is_hl else costs.evm_gas_usd
+    if is_equity:
+        fee_bps = costs.equity_commission_bps
+        slip_bps = costs.equity_slippage_bps
+        gas = 0.0
+    elif is_hl:
+        fee_bps = costs.hl_taker_fee_bps
+        slip_bps = costs.hl_slippage_bps
+        gas = 0.0
+    else:
+        fee_bps = costs.evm_swap_fee_bps
+        slip_bps = costs.evm_slippage_bps
+        gas = costs.evm_gas_usd
 
     buying = frm in STABLES and to not in STABLES
     selling = frm not in STABLES and to in STABLES

@@ -5,6 +5,8 @@
 - Hyperliquid spot and perp prices come from the Hyperliquid ``candleSnapshot``
   info endpoint (perp candles closely track spot for MVP purposes).
 - Perp funding comes from the Hyperliquid ``fundingHistory`` endpoint (8h).
+- US equities (``chain: equity``) come from Yahoo Finance (free, no key) with an
+  optional Alpha Vantage fallback when ``ALPHA_VANTAGE_API_KEY`` is set.
 
 Everything is reindexed onto a single master timeline derived from the
 requested ``[start, end]`` range and ``interval`` so the simulator can iterate
@@ -21,6 +23,7 @@ import pandas as pd
 import requests
 
 from . import cache
+from .equity_providers import EQUITY_CHAINS, EquityProvider
 
 # The primary Binance API geo-blocks some regions (HTTP 451). The public data
 # mirror and the US endpoint are used as fallbacks.
@@ -313,7 +316,12 @@ class MarketData:
 
     @staticmethod
     def _venue_for_chain(chain: str) -> str:
-        return "hyperliquid" if chain.lower() == "hyperliquid" else "evm"
+        cl = chain.lower()
+        if cl == "hyperliquid":
+            return "hyperliquid"
+        if cl in EQUITY_CHAINS:
+            return "equity"
+        return "evm"
 
     @staticmethod
     def _col(symbol: str, venue: str) -> str:
@@ -322,7 +330,7 @@ class MarketData:
     @classmethod
     def build(
         cls,
-        requirements: List[Tuple[str, str]],  # (symbol, venue) where venue in {evm, hyperliquid}
+        requirements: List[Tuple[str, str]],  # (symbol, venue) venue in evm|hyperliquid|equity
         funding_symbols: List[str],
         interval: str,
         start: str,
@@ -336,6 +344,7 @@ class MarketData:
 
         binance = BinanceProvider()
         hl = HyperliquidProvider()
+        equity = EquityProvider()
 
         # De-duplicate requirements.
         reqs = sorted(set((s.upper(), v) for s, v in requirements))
@@ -345,6 +354,8 @@ class MarketData:
         for symbol, venue in reqs:
             if venue == "hyperliquid":
                 frame = hl.fetch_candles(symbol, interval, start_ms, end_ms)
+            elif venue == "equity":
+                frame = equity.fetch(symbol, interval, start_ms, end_ms)
             else:
                 frame = binance.fetch(symbol, interval, start_ms, end_ms)
             if frame.empty:
@@ -390,20 +401,37 @@ class MarketData:
         venue = self._venue_for_chain(chain)
         col = self._col(symbol, venue)
         if col not in self._price_frame.columns:
-            # Fall back to the EVM (Binance) price if the venue-specific series
-            # is unavailable.
-            col = self._col(symbol, "evm")
-        if col not in self._price_frame.columns:
+            # Hyperliquid-only fallback: use Binance proxy when HL series is missing.
+            if venue == "hyperliquid":
+                alt = self._col(symbol, "evm")
+                if alt in self._price_frame.columns:
+                    return float(self._price_frame.at[ts, alt])
             raise KeyError(f"No price series for {symbol} on {chain}")
         return float(self._price_frame.at[ts, col])
 
-    def signal_price(self, symbol: str, ts: pd.Timestamp) -> float:
-        """Canonical price used to evaluate signals (prefers EVM/Binance)."""
-        for venue in ("evm", "hyperliquid"):
+    def signal_price(self, symbol: str, ts: pd.Timestamp, *, venue: str | None = None) -> float:
+        """Price for signal evaluation. Pass ``venue='equity'`` for stock signals."""
+        if venue:
             col = self._col(symbol, venue)
             if col in self._price_frame.columns:
                 return float(self._price_frame.at[ts, col])
+            raise KeyError(f"No {venue} price series for signal on {symbol}")
+        for v in ("evm", "equity", "hyperliquid"):
+            col = self._col(symbol, v)
+            if col in self._price_frame.columns:
+                return float(self._price_frame.at[ts, col])
         raise KeyError(f"No price series to evaluate signal for {symbol}")
+
+    def price_for_balance(self, symbol: str, ts: pd.Timestamp) -> float:
+        """Mark-to-market a held asset (tries equity, then crypto venues)."""
+        sym = symbol.upper()
+        if sym in {"USDC", "USDT", "DAI", "USD"}:
+            return 1.0
+        for venue in ("equity", "evm", "hyperliquid"):
+            col = self._col(sym, venue)
+            if col in self._price_frame.columns:
+                return float(self._price_frame.at[ts, col])
+        raise KeyError(f"No price series for balance asset {symbol}")
 
     def reference_price(self, ts: pd.Timestamp) -> Optional[float]:
         if self._price_frame.shape[1] == 0:

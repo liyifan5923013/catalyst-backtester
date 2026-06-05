@@ -47,6 +47,8 @@ class CostModel(BaseModel):
     hl_slippage_bps: float = 5.0
     perp_maintenance_margin_frac: float = 0.02  # 2% maintenance margin
     yield_apy: float = 0.05  # flat 5% APY for yield positions (MVP)
+    equity_commission_bps: float = 0.0  # US equity commission (many brokers are $0)
+    equity_slippage_bps: float = 5.0  # modeled spread/slippage on equity fills
 
 
 # ---------------------------------------------------------------------------

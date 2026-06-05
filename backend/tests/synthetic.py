@@ -30,6 +30,9 @@ def make_market_data(
     frame = pd.DataFrame(index=idx)
     frame["ETH@evm"] = prices
     frame["ETH@hyperliquid"] = [p * 1.001 for p in prices]  # tiny basis
+    # US equity examples (graph_16): AAPL-like path for offline runs.
+    frame["AAPL@equity"] = [180 + 20 * math.sin(2 * math.pi * 2 * i / periods) for i in range(periods)]
+    frame["SPY@equity"] = [450 + 30 * math.sin(2 * math.pi * 2 * i / periods) for i in range(periods)]
 
     # One funding event per 8h, small positive rate.
     funding: List[Tuple[pd.Timestamp, str, float]] = []

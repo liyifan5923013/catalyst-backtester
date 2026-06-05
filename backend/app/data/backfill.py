@@ -23,13 +23,13 @@ import argparse
 import sys
 
 from . import db
-from .providers import INTERVAL_MS, BinanceProvider, HyperliquidProvider, to_ms
+from .providers import INTERVAL_MS, BinanceProvider, EquityProvider, HyperliquidProvider, to_ms
 
 
 def _parse_args(argv):
     p = argparse.ArgumentParser(prog="python -m app.data.backfill", description=__doc__)
-    p.add_argument("--source", choices=["binance", "hyperliquid"], required=True)
-    p.add_argument("--symbol", required=True, help="Asset symbol, e.g. ETH")
+    p.add_argument("--source", choices=["binance", "hyperliquid", "yahoo"], required=True)
+    p.add_argument("--symbol", required=True, help="Asset symbol, e.g. ETH or AAPL")
     p.add_argument("--interval", default="1h", choices=sorted(INTERVAL_MS), help="Candle interval")
     p.add_argument("--start", required=True, help="ISO date/datetime (UTC)")
     p.add_argument("--end", required=True, help="ISO date/datetime (UTC)")
@@ -67,6 +67,8 @@ def main(argv=None) -> int:
 
     if args.source == "binance":
         df = BinanceProvider().fetch(args.symbol, args.interval, start_ms, end_ms)
+    elif args.source == "yahoo":
+        df = EquityProvider().fetch(args.symbol, args.interval, start_ms, end_ms)
     else:
         df = HyperliquidProvider().fetch_candles(args.symbol, args.interval, start_ms, end_ms)
     print(

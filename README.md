@@ -17,7 +17,9 @@ would have performed over a chosen time period.
 - **Backend:** Python / FastAPI + pandas
 - **Frontend:** React + TypeScript (Vite) + Recharts
 - **Data (free, public):** Binance klines (EVM spot pricing), Hyperliquid
-  `candleSnapshot` (spot/perp candles) and `fundingHistory` (perp funding).
+  `candleSnapshot` (spot/perp candles) and `fundingHistory` (perp funding), and
+  **US equities** via Yahoo Finance (no key) with optional Alpha Vantage fallback
+  (`ALPHA_VANTAGE_API_KEY`).
 
 ## What it supports
 
@@ -25,9 +27,10 @@ would have performed over a chosen time period.
 | --- | --- |
 | `action / swap` (EVM `base`) | DEX swap priced off Binance, flat gas + fee + slippage |
 | `action / swap` (`hyperliquid`) | Spot order priced off Hyperliquid candles, taker fee + slippage |
+| `action / swap` (`equity`) | US stock buy/sell (e.g. AAPL) priced off Yahoo Finance, commission + slippage |
 | `action / perp_order` | Open / add / close Hyperliquid perp at leverage, with funding, mark-to-market PnL, and liquidation |
 | `action / yield_deposit` / `yield_withdraw` | Aave-style deposit/withdraw accruing a flat configurable APY |
-| `signal / price_threshold` | Boolean condition (`<` / `>`) evaluated each tick |
+| `signal / price_threshold` | Boolean condition (`<` / `>`) evaluated each tick. Set `"market": "equity"` for stock prices. |
 
 Options, prediction markets, etc. are intentionally out of scope.
 
@@ -136,6 +139,9 @@ Returns `{ metrics, equity_curve, trades, events }`.
   Binance (EVM) price** as a proxy, and perp funding is simply skipped. For the
   highest-fidelity perp/funding backtests, use a recent date range. The
   frontend defaults to the **last 120 days** for this reason.
+- **US equities:** Yahoo Finance chart API (free, no key). Optional
+  `ALPHA_VANTAGE_API_KEY` for Alpha Vantage free tier (25 req/day). Use
+  `"chain": "equity"` on swap actions (e.g. buy AAPL with USDC).
 - USDC/USDT/DAI are treated as a $1 peg.
 - Yield uses a flat configurable APY (default 5%) rather than live historical
   Aave rates.
@@ -147,7 +153,7 @@ cd backend
 pytest -q
 ```
 
-Tests cover graph parsing, execution math, a synthetic-data run of all 15
-example graphs, and the persistence layer's gap/coverage/staleness logic (no
+Tests cover graph parsing, execution math, a synthetic-data run of all example
+graphs, equity provider parsing, and the persistence layer's gap/coverage/staleness logic (no
 network required). The Timescale read-through round-trip test runs only when
 `DATABASE_URL` is set; otherwise it is skipped.

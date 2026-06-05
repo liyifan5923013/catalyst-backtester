@@ -13,10 +13,20 @@ from dataclasses import dataclass, field
 from typing import Dict, List, Tuple
 
 from ..models import Graph, Node
+from ..data.equity_providers import EQUITY_CHAINS
 
 ACTION_SUBTYPES = {"swap", "perp_order", "yield_deposit", "yield_withdraw"}
 SIGNAL_SUBTYPES = {"price_threshold"}
 EVM_CHAINS = {"base", "ethereum", "eth", "arbitrum", "optimism", "polygon", "evm"}
+
+
+def _venue_for_chain(chain: str) -> str:
+    cl = chain.lower()
+    if cl == "hyperliquid":
+        return "hyperliquid"
+    if cl in EQUITY_CHAINS:
+        return "equity"
+    return "evm"
 
 
 @dataclass
@@ -35,7 +45,7 @@ class GraphRuntime:
         """Return ``(price_requirements, funding_symbols)``.
 
         ``price_requirements`` is a list of ``(symbol, venue)`` where venue is
-        ``"evm"`` or ``"hyperliquid"``. ``funding_symbols`` lists perp symbols
+        ``"evm"``, ``"hyperliquid"``, or ``"equity"``. ``funding_symbols`` lists perp symbols
         that need funding-rate data.
         """
         prices: set[Tuple[str, str]] = set()
@@ -45,10 +55,13 @@ class GraphRuntime:
                 continue
             cfg = node.config
             if node.kind == "signal" and node.subtype == "price_threshold":
-                prices.add((str(cfg.get("symbol", "")).upper(), "evm"))
+                sym = str(cfg.get("symbol", "")).upper()
+                market = str(cfg.get("market", "crypto")).lower()
+                venue = "equity" if market in ("equity", "stock") else "evm"
+                prices.add((sym, venue))
             elif node.subtype == "swap":
                 symbol = _swap_symbol(cfg)
-                venue = "hyperliquid" if str(cfg.get("chain", "")).lower() == "hyperliquid" else "evm"
+                venue = _venue_for_chain(str(cfg.get("chain", "base")))
                 prices.add((symbol, venue))
             elif node.subtype == "perp_order":
                 symbol = str(cfg.get("symbol", "")).upper()

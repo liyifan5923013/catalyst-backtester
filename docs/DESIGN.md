@@ -315,6 +315,9 @@ An `Event` is `{t, level (info|warning|error), node_id?, message}`.
 - **Hyperliquid spot/perp pricing** → `POST /info` `candleSnapshot` (OHLCV). Note: only the
   **most recent ~5000 candles** are available per market.
 - **Perp funding** → `POST /info` `fundingHistory` (8h cadence).
+- **US equities** (`chain: equity`) → Yahoo Finance chart API (free, no key). Optional
+  **Alpha Vantage** fallback when `ALPHA_VANTAGE_API_KEY` is set (free tier: 25 req/day).
+  Stored in the persistence layer under source `yahoo`.
 - USDC/USDT/DAI are pegged to **$1**.
 
 ### Unified timeline (`MarketData`)

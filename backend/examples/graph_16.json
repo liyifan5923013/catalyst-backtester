@@ -1,0 +1,15 @@
+{
+  "title": "US Equity - Buy $1000 of AAPL",
+  "graph": {
+    "nodes": [
+      {
+        "id": "buy-aapl",
+        "kind": "action",
+        "subtype": "swap",
+        "config": { "from_asset": "USDC", "to_asset": "AAPL", "amount": "1000", "chain": "equity" },
+        "enabled": true
+      }
+    ],
+    "edges": []
+  }
+}
