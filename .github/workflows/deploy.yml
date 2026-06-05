@@ -10,6 +10,13 @@ name: Build and deploy to App Runner
 on:
   push:
     branches: [main]
+    # Skip rebuilds for changes that don't affect the running app. Note the
+    # hosted one-pager lives in frontend/public, so it is NOT ignored.
+    paths-ignore:
+      - "**.md"
+      - "docs/**"
+      - "deploy/**"
+      - ".gitignore"
   workflow_dispatch:
 
 permissions:
