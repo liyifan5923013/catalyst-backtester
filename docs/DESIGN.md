@@ -540,8 +540,14 @@ Postgres + the app wired via `DATABASE_URL`.
 - `test_graph.py` — parsing, trigger structure (roots, chains, signal children), validation errors.
 - `test_execution.py` — swap buy/sell math, perp open/close PnL, yield deposit/withdraw,
   insufficient-balance warnings.
-- `test_examples.py` — runs **all 15 example graphs** against deterministic synthetic data
+- `test_examples.py` — runs **all 16 example graphs** against deterministic synthetic data
   (offline), asserting equity is finite/non-negative and metrics are self-consistent.
+- `graph_gen.py` + `test_fuzz.py` — a seeded random graph generator (also runnable as
+  `python -m tests.graph_gen --seed N` to emit a graph for the web/mobile UI) plus a
+  property-based suite that runs **250 generated graphs** crash-free, asserting finite,
+  non-negative equity and metrics that reconcile with the equity curve and trade log.
+- `test_prewarm.py` — watchlist parsing, lifespan startup wiring, interval cadence
+  (incl. minute-level), and the per-source throttle that protects rate-limited providers.
 - `test_data.py` — yield-only timeline synthesis (no network).
 - `test_persistence.py` — pure gap/coverage/staleness arithmetic (always), plus a
   read-through round-trip integration test gated on `DATABASE_URL` (skipped offline).
