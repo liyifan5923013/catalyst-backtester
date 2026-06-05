@@ -1,8 +1,12 @@
 """Tests for the scheduled pre-warm watchlist + run loop (offline)."""
 from __future__ import annotations
 
-import pandas as pd
+import threading
 
+import pandas as pd
+from fastapi.testclient import TestClient
+
+from app import main as app_main
 from app.data import prewarm
 
 
@@ -81,6 +85,36 @@ def test_run_prewarm_isolates_failures(monkeypatch):
     monkeypatch.setattr(prewarm, "_fetch_entry", _fake)
     # One entry fails, the other still completes.
     assert prewarm.run_prewarm() == 1
+
+
+def test_lifespan_starts_loop_when_enabled(monkeypatch):
+    """With PREWARM_ENABLED=1 and a DB, the app fires the warmer on startup."""
+    called = threading.Event()
+
+    monkeypatch.setenv("PREWARM_ENABLED", "1")
+    monkeypatch.setattr(app_main.db, "is_enabled", lambda: True)
+
+    def _fake_run(trailing_days):
+        called.set()
+        return 0
+
+    # The loop imports run_prewarm from app.data.prewarm at runtime.
+    monkeypatch.setattr(prewarm, "run_prewarm", _fake_run)
+
+    with TestClient(app_main.app):
+        assert called.wait(timeout=5.0), "prewarm loop did not run on startup"
+
+
+def test_lifespan_skips_loop_when_disabled(monkeypatch):
+    """Default (PREWARM_ENABLED unset) must not start the loop."""
+    called = threading.Event()
+
+    monkeypatch.delenv("PREWARM_ENABLED", raising=False)
+    monkeypatch.setattr(app_main.db, "is_enabled", lambda: True)
+    monkeypatch.setattr(prewarm, "run_prewarm", lambda trailing_days: called.set())
+
+    with TestClient(app_main.app):
+        assert not called.wait(timeout=1.0), "loop ran despite being disabled"
 
 
 def test_fetch_entry_routes_to_provider(monkeypatch):
