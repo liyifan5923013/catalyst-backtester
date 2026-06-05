@@ -95,6 +95,10 @@ def run_backtest(req: BacktestRequest, market_data=None) -> BacktestResult:
     funding_ptr = 0
     n_funding = len(md.funding_events)
     prev_ts = None
+    # Signals whose config is malformed (bad operator / non-numeric threshold).
+    # We warn once and then skip them so a hand-typed bad signal degrades
+    # gracefully instead of crashing the whole backtest.
+    broken_signals: set[str] = set()
 
     for i, ts in enumerate(timeline):
         state["ts"] = ts
@@ -130,6 +134,8 @@ def run_backtest(req: BacktestRequest, market_data=None) -> BacktestResult:
 
         # 5. signals (rising edge)
         for sid in runtime.signal_ids:
+            if sid in broken_signals:
+                continue
             node = runtime.node(sid)
             symbol = str(node.config.get("symbol", ""))
             market = str(node.config.get("market", "crypto")).lower()
@@ -138,7 +144,14 @@ def run_backtest(req: BacktestRequest, market_data=None) -> BacktestResult:
                 price = md.signal_price(symbol, ts, venue=venue)
             except KeyError:
                 continue
-            current = SignalState.evaluate(node, price)
+            try:
+                current = SignalState.evaluate(node, price)
+            except (ValueError, TypeError) as exc:
+                # Malformed signal config: warn once, then ignore this signal.
+                broken_signals.add(sid)
+                events.append(Event(t=ts_iso, level="warning", node_id=sid,
+                                    message=f"Signal '{sid}' disabled: {exc}"))
+                continue
             if signal_state.rising_edge(sid, current):
                 for child in runtime.signal_children.get(sid, []):
                     fire_action(child, ts_iso, set())
