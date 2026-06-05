@@ -53,6 +53,7 @@ export default function App() {
   const [result, setResult] = useState<BacktestResult | null>(null);
   const [compareResult, setCompareResult] = useState<BacktestResult | null>(null);
   const [compareLabel, setCompareLabel] = useState<string | null>(null);
+  const [compareWarning, setCompareWarning] = useState<string | null>(null);
   const [summary, setSummary] = useState<SummaryResponse | null>(null);
   const [summaryLoading, setSummaryLoading] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -79,37 +80,50 @@ export default function App() {
     setLoading(true);
     setError(null);
     setSummary(null);
+    setCompareWarning(null);
     try {
       const graph = parsedGraph.value;
+      // The primary run is the one that matters; if it fails, surface the error.
       const primary = await runBacktest({ graph, ...config });
 
       let cmp: BacktestResult | null = null;
       let cmpLabel: string | null = null;
+      let cmpWarn: string | null = null;
       if (compare.enabled) {
         const range = effectiveCompareRange(config, compare);
-        if (!range.start || !range.end) {
-          throw new Error("Please choose a comparison start and end date.");
-        }
         cmpLabel = COMPARE_LABELS[compare.mode];
-        cmp = await runBacktest({
-          graph,
-          start: range.start,
-          end: range.end,
-          interval: config.interval,
-          initial_capital: config.initial_capital,
-        });
+        if (!range.start || !range.end) {
+          cmpWarn = "Pick a comparison start and end date to enable the comparison.";
+        } else {
+          // A comparison failure (e.g. no data that far back) must NOT discard
+          // the valid primary result — degrade gracefully with a warning.
+          try {
+            cmp = await runBacktest({
+              graph,
+              start: range.start,
+              end: range.end,
+              interval: config.interval,
+              initial_capital: config.initial_capital,
+            });
+          } catch (e) {
+            cmp = null;
+            cmpWarn = `Comparison (${cmpLabel}, ${range.start} → ${range.end}) couldn't be run: ${(e as Error).message}`;
+          }
+        }
       }
 
       setResult(primary);
       setCompareResult(cmp);
-      setCompareLabel(cmpLabel);
+      setCompareLabel(cmp ? cmpLabel : null);
+      setCompareWarning(cmpWarn);
 
       // Fire-and-forget the AI summary; results render immediately regardless.
-      void loadSummary(primary, cmp, cmpLabel, graph);
+      void loadSummary(primary, cmp, cmp ? cmpLabel : null, graph);
     } catch (e) {
       setError((e as Error).message);
       setResult(null);
       setCompareResult(null);
+      setCompareWarning(null);
     } finally {
       setLoading(false);
     }
@@ -189,6 +203,7 @@ export default function App() {
           )}
           {error && <div className="alert error">{error}</div>}
           {loading && <div className="alert info">Running backtest. Fetching market data may take a few seconds…</div>}
+          {!loading && compareWarning && <div className="alert warn">{compareWarning}</div>}
           {!loading && !result && !error && (
             <div className="empty-state">
               <h2>No results yet</h2>
