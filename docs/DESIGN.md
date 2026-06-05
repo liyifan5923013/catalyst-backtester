@@ -209,9 +209,11 @@ Common assumptions: fills at candle **close**; flat per-venue costs from `CostMo
 
 ### Swap / spot ([execution.py](../backend/app/engine/execution.py) `execute_swap`)
 - **Buy** (`from USDC`): `amount` is **USD notional**. Tokens received =
-  `(usd_in − fee − slippage) / price`; gas debited from USDC. Balance checked first.
+  `(usd_in − fee − slippage) / price`; gas debited from USDC. Balance checked first. The
+  USD paid is added to the asset's **cost basis**.
 - **Sell** (`to USDC`): `amount` is **token quantity** (or `"all"`). USD out =
-  `qty·price − fee − slippage − gas`.
+  `qty·price − fee − slippage − gas`. **Realized PnL** = proceeds − proportional cost basis,
+  so spot strategies contribute to the win rate.
 - Insufficient balance → skip + `warning`. (`amount` greater than holdings is **not** a
   partial fill in the strict model; it is skipped.)
 
@@ -224,7 +226,8 @@ Common assumptions: fills at candle **close**; flat per-venue costs from `CostMo
   position margin (longs pay shorts when rate > 0).
 - **Liquidation** (`check_liquidations`): each tick, if
   `position_equity ≤ maintenance_frac · notional`, the position is closed and the margin is
-  wiped, logged as a `warning`.
+  wiped, logged as a `warning` **and recorded as a synthetic `perp_close` trade** (with the
+  realized loss) so the trade log and PnL reconcile.
 
 ### Yield ([execution.py](../backend/app/engine/execution.py) `execute_yield`)
 - **Deposit**: moves USDC into a `YieldPosition` (principal), debits EVM gas.
@@ -300,8 +303,9 @@ Space remote (or GitHub, with an optional sync action).
 - **Data fidelity**: HL candle history is limited to ~5000 recent candles; deep-history perp
   runs fall back to Binance proxy pricing with funding skipped. Yield uses a flat APY rather
   than live historical protocol rates.
-- **Execution realism**: fills at close, flat slippage/fees, no order-book depth, no latency,
-  no MEV/priority fees, no partial fills (strict skip model).
+- **Execution realism**: fills at close (same-candle, mild look-ahead), flat slippage/fees,
+  no order-book depth, no latency, no MEV/priority fees. Spot orders with insufficient
+  balance are skipped (no partial fill); perp closes snap sub-$1 dust and support `"all"`.
 - **Single-asset focus**: examples are ETH; the engine generalizes to other symbols but is
   untested beyond ETH/USDC.
 - **No persistence/auth**: runs are stateless and synchronous.

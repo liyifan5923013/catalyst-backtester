@@ -30,9 +30,12 @@ class ExecResult:
 
 
 def _parse_amount(value, all_value: float) -> float:
-    if isinstance(value, str) and value.strip().lower() == "all":
+    if isinstance(value, str) and value.strip().lower() in ("all", "max"):
         return all_value
-    return float(value)
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        raise ValueError(f"invalid numeric amount: {value!r}")
 
 
 def _warn(ts_iso: str, node_id: str, message: str) -> ExecResult:
@@ -76,7 +79,8 @@ def execute_swap(node: Node, pf: Portfolio, costs: CostModel, ctx: ExecContext) 
         slip = usd_in * slip_bps / BPS
         tokens_out = (usd_in - fee - slip) / price
         pf.sub(frm, usd_in + gas)
-        pf.add(to, tokens_out)
+        # Cost basis includes everything paid (notional + fees + gas).
+        pf.buy_spot(to, tokens_out, usd_in + gas)
         trade = Trade(
             t=ctx.ts_iso, node_id=node.id, kind="swap", chain=chain, symbol=token, side="buy",
             qty=tokens_out, price=price, usd_value=usd_in, fee_usd=fee + slip + gas,
@@ -97,12 +101,12 @@ def execute_swap(node: Node, pf: Portfolio, costs: CostModel, ctx: ExecContext) 
     fee = gross * fee_bps / BPS
     slip = gross * slip_bps / BPS
     usd_out = gross - fee - slip - gas
-    pf.sub(frm, qty)
+    realized = pf.sell_spot(frm, qty, usd_out)
     pf.add(to, usd_out)
     trade = Trade(
         t=ctx.ts_iso, node_id=node.id, kind="swap", chain=chain, symbol=token, side="sell",
-        qty=qty, price=price, usd_value=gross, fee_usd=fee + slip + gas,
-        note=f"Sold {qty:.6f} {token} for ${usd_out:.2f}",
+        qty=qty, price=price, usd_value=gross, fee_usd=fee + slip + gas, realized_pnl=realized,
+        note=f"Sold {qty:.6f} {token} for ${usd_out:.2f} (pnl ${realized:.2f})",
     )
     return ExecResult(trade=trade)
 
@@ -120,17 +124,21 @@ def execute_perp(node: Node, pf: Portfolio, costs: CostModel, ctx: ExecContext) 
     if price <= 0:
         return _warn(ctx.ts_iso, node.id, f"No valid price for perp {symbol}.")
 
-    fee = abs(_parse_amount(cfg.get("size_usd"), 0.0)) * costs.hl_taker_fee_bps / BPS
-    size_usd = _parse_amount(cfg.get("size_usd"), 0.0)
-    if size_usd <= 0:
-        return _warn(ctx.ts_iso, node.id, "Perp size_usd resolved to 0.")
-
     pos = pf.perps.get(symbol)
 
     if reduce_only:
         if pos is None or abs(pos.size_tokens) < 1e-12:
             return _warn(ctx.ts_iso, node.id, f"reduce_only order but no open {symbol} position.")
+        notional_full = abs(pos.size_tokens) * price
+        # "all"/"max" closes the whole position.
+        size_usd = _parse_amount(cfg.get("size_usd"), notional_full)
+        if size_usd <= 0:
+            return _warn(ctx.ts_iso, node.id, "Perp size_usd resolved to 0.")
+        fee = size_usd * costs.hl_taker_fee_bps / BPS
         close_tokens = min(size_usd / price, abs(pos.size_tokens))
+        # Snap away sub-$1 dust so round-trips fully close.
+        if (abs(pos.size_tokens) - close_tokens) * price < 1.0:
+            close_tokens = abs(pos.size_tokens)
         sign = 1.0 if pos.size_tokens > 0 else -1.0
         realized = sign * close_tokens * (price - pos.entry_price)
         frac = close_tokens / abs(pos.size_tokens)
@@ -151,7 +159,18 @@ def execute_perp(node: Node, pf: Portfolio, costs: CostModel, ctx: ExecContext) 
         return ExecResult(trade=trade)
 
     # opening / adding
-    leverage = float(cfg.get("leverage", 1) or 1)
+    size_usd = _parse_amount(cfg.get("size_usd"), 0.0)
+    if size_usd <= 0:
+        return _warn(ctx.ts_iso, node.id, "Perp size_usd resolved to 0.")
+    fee = size_usd * costs.hl_taker_fee_bps / BPS
+    try:
+        leverage = float(cfg.get("leverage", 1) or 1)
+    except (TypeError, ValueError):
+        return _warn(ctx.ts_iso, node.id, f"Invalid leverage: {cfg.get('leverage')!r}.")
+    if leverage <= 0:
+        return _warn(ctx.ts_iso, node.id, f"Leverage must be > 0 (got {leverage}).")
+    if side not in ("long", "short"):
+        return _warn(ctx.ts_iso, node.id, f"Perp side must be 'long' or 'short' (got {side!r}).")
     margin_required = size_usd / leverage
     if pf.get(pf.cash_asset) < margin_required + fee:
         return _warn(
@@ -260,17 +279,33 @@ def apply_funding(pf: Portfolio, symbol: str, rate: float, price: float, ts_iso:
     return []
 
 
-def check_liquidations(pf: Portfolio, price_of, maintenance_frac: float, ts_iso: str) -> List[Event]:
-    """Liquidate any perp whose equity falls below maintenance margin."""
+def check_liquidations(
+    pf: Portfolio, price_of, maintenance_frac: float, ts_iso: str
+) -> tuple[List[Event], List[Trade]]:
+    """Liquidate any perp whose equity falls below maintenance margin.
+
+    Returns both the warning events and synthetic close trades so the trade log
+    and PnL reconcile on liquidated runs.
+    """
     events: List[Event] = []
+    trades: List[Trade] = []
     for symbol in list(pf.perps.keys()):
         pos = pf.perps[symbol]
         price = price_of(symbol)
         if pos.equity(price) <= maintenance_frac * pos.notional(price):
+            is_long = pos.size_tokens > 0
+            realized = pos.unrealized_pnl(price)
             events.append(Event(
                 t=ts_iso, level="warning", node_id=None,
-                message=f"Liquidated {symbol} {'long' if pos.size_tokens > 0 else 'short'} "
+                message=f"Liquidated {symbol} {'long' if is_long else 'short'} "
                         f"position at ${price:.2f} (margin wiped out).",
             ))
+            trades.append(Trade(
+                t=ts_iso, node_id="liquidation", kind="perp_close", chain="hyperliquid",
+                symbol=symbol, side="short" if is_long else "long",
+                qty=abs(pos.size_tokens), price=price, usd_value=pos.notional(price),
+                fee_usd=0.0, realized_pnl=realized,
+                note=f"Liquidated {'long' if is_long else 'short'} (lost margin ${pos.margin:.2f})",
+            ))
             pf.perps.pop(symbol, None)
-    return events
+    return events, trades

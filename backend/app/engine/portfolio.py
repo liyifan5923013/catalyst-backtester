@@ -45,6 +45,9 @@ class Portfolio:
     balances: Dict[str, float] = field(default_factory=dict)
     perps: Dict[str, PerpPosition] = field(default_factory=dict)
     yields: Dict[str, YieldPosition] = field(default_factory=dict)
+    # Total USD cost of the current holding of each (non-stable) asset, used to
+    # compute realized PnL on spot sells.
+    cost_basis: Dict[str, float] = field(default_factory=dict)
 
     # -- spot balances --------------------------------------------------
     def get(self, asset: str) -> float:
@@ -56,6 +59,25 @@ class Portfolio:
 
     def sub(self, asset: str, qty: float) -> None:
         self.add(asset, -qty)
+
+    # -- spot cost-basis tracking --------------------------------------
+    def buy_spot(self, asset: str, qty: float, usd_cost: float) -> None:
+        """Record a spot purchase: add tokens and their USD cost basis."""
+        a = asset.upper()
+        self.add(a, qty)
+        self.cost_basis[a] = self.cost_basis.get(a, 0.0) + usd_cost
+
+    def sell_spot(self, asset: str, qty: float, usd_proceeds: float) -> float:
+        """Record a spot sale; returns realized PnL (proceeds minus cost basis)."""
+        a = asset.upper()
+        held = self.get(a)
+        total_cost = self.cost_basis.get(a, 0.0)
+        cost_removed = total_cost * (qty / held) if held > 0 else 0.0
+        self.cost_basis[a] = total_cost - cost_removed
+        self.sub(a, qty)
+        if self.get(a) <= 1e-12:
+            self.cost_basis[a] = 0.0
+        return usd_proceeds - cost_removed
 
     # -- valuation ------------------------------------------------------
     @staticmethod

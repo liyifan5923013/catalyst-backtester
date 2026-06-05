@@ -82,7 +82,12 @@ def run_backtest(req: BacktestRequest, market_data=None) -> BacktestResult:
             events.append(Event(t=ts_iso, level="error", node_id=action_id,
                                 message=f"No executor for subtype '{node.subtype}'."))
             return
-        result = executor(node, pf, req.costs, ctx)
+        try:
+            result = executor(node, pf, req.costs, ctx)
+        except Exception as exc:  # noqa: BLE001 - contain per-action failures
+            events.append(Event(t=ts_iso, level="error", node_id=action_id,
+                                message=f"Action '{action_id}' failed: {exc}"))
+            return
         if result.trade is not None:
             trades.append(result.trade)
         events.extend(result.events)
@@ -114,7 +119,11 @@ def run_backtest(req: BacktestRequest, market_data=None) -> BacktestResult:
             funding_ptr += 1
 
         # 3. liquidations
-        events.extend(check_liquidations(pf, price_of, req.costs.perp_maintenance_margin_frac, ts_iso))
+        liq_events, liq_trades = check_liquidations(
+            pf, price_of, req.costs.perp_maintenance_margin_frac, ts_iso
+        )
+        events.extend(liq_events)
+        trades.extend(liq_trades)
 
         # 4. root actions at t0
         if i == 0:
