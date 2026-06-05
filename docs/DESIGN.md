@@ -183,7 +183,7 @@ flowchart TB
 
 ### AWS deployment architecture (production)
 
-Live URL: `https://qkz2sj2ca6.us-east-1.awsapprunner.com` · one-pager: `/overview.html`
+Live URL: `https://catalystbacktest.com` · one-pager: `/overview.html`
 
 ```mermaid
 flowchart TB
