@@ -13,6 +13,24 @@ import pytest
 
 from app.data import db
 from app.data.repository import compute_gaps, merge_segments, subtract_coverage
+from app.data.store import _PG_MAX_BIND_PARAMS, _chunk_rows
+
+
+# -- bulk-insert chunking (Postgres 65535 bind-param cap) -------------------
+def test_chunk_rows_stays_under_param_cap():
+    # A year of hourly candles at 9 params/row would be ~79k params in one
+    # statement; chunking must keep every batch under the limit.
+    rows = list(range(8760))
+    batches = list(_chunk_rows(rows, params_per_row=9))
+    assert sum(len(b) for b in batches) == len(rows)
+    assert all(len(b) * 9 <= _PG_MAX_BIND_PARAMS for b in batches)
+    # Round-trips to the same data, in order.
+    assert [r for b in batches for r in b] == rows
+
+
+def test_chunk_rows_single_batch_when_small():
+    rows = list(range(10))
+    assert list(_chunk_rows(rows, params_per_row=9)) == [rows]
 
 
 def dt(day: int, hour: int = 0) -> datetime:

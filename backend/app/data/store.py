@@ -76,6 +76,19 @@ def _to_utc(ts) -> datetime:
     return t.to_pydatetime()
 
 
+# Postgres caps a single statement at 65535 bind parameters. A multi-row INSERT
+# uses (params_per_row * n_rows) of them, so a year of 1h candles (9 cols ~ 79k
+# params) overflows. We chunk rows to stay safely under the limit.
+_PG_MAX_BIND_PARAMS = 60000
+
+
+def _chunk_rows(rows: list, params_per_row: int):
+    """Yield row batches small enough to fit under the bind-parameter cap."""
+    size = max(1, _PG_MAX_BIND_PARAMS // max(1, params_per_row))
+    for i in range(0, len(rows), size):
+        yield rows[i : i + size]
+
+
 # -- candles ----------------------------------------------------------------
 def upsert_candles(engine: Engine, source: str, symbol: str, interval: str, df: pd.DataFrame) -> int:
     """Upsert an OHLCV frame (index = tz-aware ts) for one series. Returns rows."""
@@ -98,19 +111,21 @@ def upsert_candles(engine: Engine, source: str, symbol: str, interval: str, df: 
         )
     if not rows:
         return 0
-    stmt = pg_insert(candles).values(rows)
-    stmt = stmt.on_conflict_do_update(
-        index_elements=["source", "symbol", "interval", "ts"],
-        set_={
-            "open": stmt.excluded.open,
-            "high": stmt.excluded.high,
-            "low": stmt.excluded.low,
-            "close": stmt.excluded.close,
-            "volume": stmt.excluded.volume,
-        },
-    )
+    # candles has 9 columns -> 9 bind params per row.
     with engine.begin() as conn:
-        conn.execute(stmt)
+        for batch in _chunk_rows(rows, params_per_row=9):
+            stmt = pg_insert(candles).values(batch)
+            stmt = stmt.on_conflict_do_update(
+                index_elements=["source", "symbol", "interval", "ts"],
+                set_={
+                    "open": stmt.excluded.open,
+                    "high": stmt.excluded.high,
+                    "low": stmt.excluded.low,
+                    "close": stmt.excluded.close,
+                    "volume": stmt.excluded.volume,
+                },
+            )
+            conn.execute(stmt)
     return len(rows)
 
 
@@ -157,13 +172,15 @@ def upsert_funding(engine: Engine, source: str, symbol: str, df: pd.DataFrame) -
     ]
     if not rows:
         return 0
-    stmt = pg_insert(funding).values(rows)
-    stmt = stmt.on_conflict_do_update(
-        index_elements=["source", "symbol", "ts"],
-        set_={"rate": stmt.excluded.rate},
-    )
+    # funding has 4 columns -> 4 bind params per row.
     with engine.begin() as conn:
-        conn.execute(stmt)
+        for batch in _chunk_rows(rows, params_per_row=4):
+            stmt = pg_insert(funding).values(batch)
+            stmt = stmt.on_conflict_do_update(
+                index_elements=["source", "symbol", "ts"],
+                set_={"rate": stmt.excluded.rate},
+            )
+            conn.execute(stmt)
     return len(rows)
 
 
@@ -247,5 +264,6 @@ def replace_coverage(
     ]
     with engine.begin() as conn:
         conn.execute(del_stmt)
-        if rows:
-            conn.execute(pg_insert(coverage).values(rows))
+        # coverage has 5 columns -> 5 bind params per row.
+        for batch in _chunk_rows(rows, params_per_row=5):
+            conn.execute(pg_insert(coverage).values(batch))
