@@ -209,9 +209,14 @@ export default function App() {
             <h1>Catalyst Backtester</h1>
             <p>Strategy backtests · UTC</p>
           </div>
-          <a className="header-link" href="/overview.html">
-            About
-          </a>
+          <div className="header-links">
+            <a className="header-link" href="/help.html">
+              Help
+            </a>
+            <a className="header-link" href="/overview.html">
+              About
+            </a>
+          </div>
         </header>
 
         <div className="mobile-body">
@@ -265,8 +270,20 @@ export default function App() {
   return (
     <div className="app">
       <header className="app-header">
-        <h1>Catalyst Backtester</h1>
-        <p>Replay a Catalyst strategy graph against historical market data. All times in UTC.</p>
+        <div className="app-header-main">
+          <div>
+            <h1>Catalyst Backtester</h1>
+            <p>Replay a Catalyst strategy graph against historical market data. All times in UTC.</p>
+          </div>
+          <div className="header-links">
+            <a className="header-link" href="/help.html">
+              Help
+            </a>
+            <a className="header-link" href="/overview.html">
+              About
+            </a>
+          </div>
+        </div>
       </header>
 
       <div className={`layout ${collapsed ? "collapsed" : ""}`}>

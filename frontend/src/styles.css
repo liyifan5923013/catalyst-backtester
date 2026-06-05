@@ -38,6 +38,32 @@ body {
   margin: 0 0 20px;
   color: var(--muted);
 }
+.app-header-main {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+.header-links {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.header-link {
+  color: var(--accent-blue);
+  font-size: 13px;
+  font-weight: 500;
+  text-decoration: none;
+  padding: 8px 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel);
+  white-space: nowrap;
+}
+.header-link:hover {
+  border-color: var(--accent-blue);
+  text-decoration: none;
+}
 
 .layout {
   display: grid;
@@ -761,6 +787,17 @@ th.num {
   min-height: 44px;
   display: inline-flex;
   align-items: center;
+}
+
+.mobile-header .header-links {
+  flex-direction: column;
+  gap: 6px;
+}
+
+.mobile-header .header-link {
+  padding: 6px 10px;
+  font-size: 12px;
+  min-height: 36px;
 }
 
 .mobile-body {

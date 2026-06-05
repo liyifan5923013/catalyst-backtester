@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<meta name="theme-color" content="#0d1017" />
+<title>Help Center — Catalyst Backtester</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --panel: #161b22;
+    --panel2: #1c2330;
+    --border: #2d3748;
+    --text: #e6edf3;
+    --muted: #9aa7b4;
+    --accent: #4ade80;
+    --accent2: #60a5fa;
+    --warn: #fbbf24;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 16px/1.65 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  a { color: var(--accent2); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 0 20px; }
+
+  header.hero {
+    border-bottom: 1px solid var(--border);
+    background: linear-gradient(180deg, #11202b 0%, var(--bg) 100%);
+    padding: 40px 0 32px;
+  }
+  .eyebrow { color: var(--accent2); font-weight: 600; letter-spacing: .06em; text-transform: uppercase; font-size: 12px; }
+  h1 { font-size: 34px; margin: 8px 0 6px; line-height: 1.15; }
+  .tagline { color: var(--muted); font-size: 17px; max-width: 680px; margin: 0 0 20px; }
+  .btns { display: flex; gap: 10px; flex-wrap: wrap; }
+  .btn {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 10px 16px; border-radius: 8px; font-weight: 600; font-size: 14px;
+    border: 1px solid var(--border); background: var(--panel); color: var(--text);
+  }
+  .btn.primary { background: var(--accent); color: #06240f; border-color: var(--accent); }
+  .btn:hover { text-decoration: none; border-color: var(--accent2); }
+
+  .layout { display: grid; grid-template-columns: 220px 1fr; gap: 32px; padding: 32px 0 48px; }
+  nav.toc {
+    position: sticky; top: 20px; align-self: start;
+    background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 16px;
+  }
+  nav.toc h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 0 0 10px; }
+  nav.toc a {
+    display: block; font-size: 13px; color: var(--muted); padding: 6px 0;
+    border-bottom: 1px solid transparent;
+  }
+  nav.toc a:hover { color: var(--text); text-decoration: none; }
+  nav.toc a.active { color: var(--accent2); font-weight: 600; }
+
+  .content section { margin-bottom: 40px; scroll-margin-top: 20px; }
+  .content h2 { font-size: 22px; margin: 0 0 8px; padding-top: 4px; }
+  .content h3 { font-size: 16px; margin: 18px 0 6px; color: var(--text); }
+  .content p, .content li { color: var(--muted); font-size: 15px; }
+  .content p { margin: 0 0 12px; }
+  .content ul, .content ol { margin: 0 0 14px; padding-left: 22px; }
+  .content li { margin: 6px 0; }
+  .content li b { color: var(--text); }
+
+  .card {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
+    padding: 16px 18px; margin-bottom: 12px;
+  }
+  .card h3 { margin-top: 0; }
+  .card p:last-child { margin-bottom: 0; }
+
+  .steps { counter-reset: step; list-style: none; padding: 0; }
+  .steps li {
+    counter-increment: step; position: relative; padding-left: 36px; margin: 14px 0;
+    color: var(--muted);
+  }
+  .steps li::before {
+    content: counter(step); position: absolute; left: 0; top: 0;
+    width: 24px; height: 24px; border-radius: 999px; background: var(--accent2); color: #06121f;
+    font-size: 12px; font-weight: 700; display: flex; align-items: center; justify-content: center;
+  }
+
+  .faq details {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
+    padding: 14px 16px; margin-bottom: 10px;
+  }
+  .faq summary { cursor: pointer; font-weight: 600; font-size: 15px; color: var(--text); }
+  .faq details p { margin: 10px 0 0; font-size: 14px; }
+
+  table.metrics {
+    width: 100%; border-collapse: collapse; font-size: 14px; margin: 12px 0;
+    background: var(--panel); border: 1px solid var(--border); border-radius: 10px; overflow: hidden;
+  }
+  table.metrics th, table.metrics td {
+    text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--border);
+  }
+  table.metrics th { color: var(--muted); font-weight: 500; background: var(--panel2); }
+  table.metrics td { color: var(--muted); }
+  table.metrics td:first-child { color: var(--text); font-weight: 600; }
+  table.metrics tr:last-child td { border-bottom: none; }
+
+  code, pre {
+    background: #0b1220; border: 1px solid var(--border); border-radius: 8px;
+    font-family: "SF Mono", ui-monospace, Menlo, monospace; font-size: 12.5px;
+  }
+  code { padding: 2px 6px; color: #cbd5e1; }
+  pre { padding: 14px; overflow-x: auto; color: #cbd5e1; line-height: 1.5; margin: 12px 0; }
+
+  .tip {
+    border-left: 3px solid var(--accent); background: rgba(74, 222, 128, 0.06);
+    padding: 12px 14px; border-radius: 0 8px 8px 0; margin: 14px 0; font-size: 14px; color: var(--muted);
+  }
+  .warn-box {
+    border-left: 3px solid var(--warn); background: rgba(251, 191, 36, 0.08);
+    padding: 12px 14px; border-radius: 0 8px 8px 0; margin: 14px 0; font-size: 14px; color: var(--muted);
+  }
+
+  footer { border-top: 1px solid var(--border); padding: 24px 0 48px; color: var(--muted); font-size: 13px; }
+
+  @media (max-width: 800px) {
+    .layout { grid-template-columns: 1fr; }
+    nav.toc { position: static; display: flex; flex-wrap: wrap; gap: 8px 16px; }
+    nav.toc h2 { width: 100%; }
+    nav.toc a { padding: 4px 0; font-size: 14px; }
+    h1 { font-size: 26px; }
+  }
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="wrap">
+    <div class="eyebrow">Help Center</div>
+    <h1>How to use Catalyst Backtester</h1>
+    <p class="tagline">
+      Replay a Catalyst strategy <b>graph</b> against real historical prices, see how it would have
+      performed, compare periods, and get an AI-written summary — all in UTC.
+    </p>
+    <div class="btns">
+      <a class="btn primary" href="/">Open the app</a>
+      <a class="btn" href="/overview.html">Engineering overview</a>
+    </div>
+  </div>
+</header>
+
+<div class="wrap layout">
+  <nav class="toc" aria-label="Help topics">
+    <h2>On this page</h2>
+    <a href="#start">Getting started</a>
+    <a href="#graphs">Strategy graphs</a>
+    <a href="#actions">Supported actions</a>
+    <a href="#run">Running a backtest</a>
+    <a href="#compare">Period comparison</a>
+    <a href="#results">Reading results</a>
+    <a href="#metrics">Metrics glossary</a>
+    <a href="#summary">AI summary</a>
+    <a href="#data">Data sources</a>
+    <a href="#mobile">Mobile app</a>
+    <a href="#faq">FAQ</a>
+  </nav>
+
+  <main class="content">
+
+    <section id="start">
+      <h2>Getting started</h2>
+      <p>Catalyst Backtester answers one question: <em>if this strategy had run in the past, what would have happened?</em></p>
+      <ol class="steps">
+        <li><b>Load an example</b> from the dropdown (easiest), or paste your own Catalyst graph JSON.</li>
+        <li><b>Pick a date range</b> and granularity (<code>15m</code>, <code>1h</code>, <code>4h</code>, <code>1d</code>). All dates are <b>UTC</b>.</li>
+        <li><b>Click Run backtest</b>. The engine fetches historical prices, simulates each candle as one tick, and returns metrics + charts.</li>
+        <li><b>Optionally enable comparison</b> to run a second window (previous period or year-over-year) and see deltas.</li>
+      </ol>
+      <div class="tip">New here? Try <b>EVM Yield - Deposit 250 USDC, then Withdraw 100 USDC</b> or <b>US Equity - Buy $1000 of AAPL</b> with the last 90 days and <code>1d</code> granularity.</div>
+    </section>
+
+    <section id="graphs">
+      <h2>Strategy graphs</h2>
+      <p>A Catalyst graph is JSON with <code>nodes</code> (actions and signals) and <code>edges</code> (control flow).</p>
+      <div class="card">
+        <h3>How the engine executes a graph</h3>
+        <ul>
+          <li><b>Root actions</b> (no incoming edge) run once at the start of the backtest.</li>
+          <li><b>Signal → action</b> edges fire when a condition turns <b>true</b> (rising edge), then re-arm when it goes false again — so ladders repeat correctly.</li>
+          <li><b>Action → action</b> edges run the next action immediately after the previous one finishes.</li>
+          <li>Nodes with <code>"enabled": false</code> are skipped.</li>
+        </ul>
+      </div>
+      <pre>{
+  "nodes": [
+    { "id": "buy", "kind": "action", "subtype": "swap",
+      "config": { "from_asset": "USDC", "to_asset": "ETH", "amount": "100", "chain": "base" },
+      "enabled": true }
+  ],
+  "edges": []
+}</pre>
+    </section>
+
+    <section id="actions">
+      <h2>Supported actions</h2>
+      <div class="card">
+        <h3>Swap (spot)</h3>
+        <p><code>chain: base</code> / EVM — priced from Binance. <code>chain: hyperliquid</code> — Hyperliquid spot. <code>chain: equity</code> — US stocks (e.g. AAPL) from Yahoo Finance. Buys use USD notional; sells use token quantity or <code>"all"</code>.</p>
+      </div>
+      <div class="card">
+        <h3>Perp order</h3>
+        <p>Hyperliquid perpetuals only. Supports open/add/close with leverage, funding every 8h, and liquidation when margin is exhausted.</p>
+      </div>
+      <div class="card">
+        <h3>Yield deposit / withdraw</h3>
+        <p>Aave-style USDC yield with a flat configurable APY (default 5%). No live protocol rates in MVP.</p>
+      </div>
+      <div class="card">
+        <h3>Price threshold (signal)</h3>
+        <p>Boolean condition on price each tick: <code>operator</code> (&lt; or &gt;) and <code>threshold</code>. For stocks, add <code>"market": "equity"</code> to the signal config.</p>
+      </div>
+    </section>
+
+    <section id="run">
+      <h2>Running a backtest</h2>
+      <h3>Sidebar / Setup tab</h3>
+      <ul>
+        <li><b>Example strategy</b> — loads a pre-built graph into the JSON editor.</li>
+        <li><b>Analysis period</b> — start/end dates (UTC badge shown).</li>
+        <li><b>Granularity</b> — one candle = one simulation tick.</li>
+        <li><b>Initial capital</b> — starting USDC balance (default $10,000).</li>
+        <li><b>Strategy graph (JSON)</b> — must be valid JSON; invalid graphs block the run button.</li>
+      </ul>
+      <p>On desktop, use <b>‹ Hide</b> to collapse the inputs panel and focus on results. On mobile, use the bottom <b>Setup / Results</b> tabs.</p>
+      <div class="warn-box">First run may take a few seconds while market data is fetched. Subsequent runs over the same range are faster when data is cached.</div>
+    </section>
+
+    <section id="compare">
+      <h2>Period comparison</h2>
+      <p>Enable <b>Compare to another period</b> to run the same strategy twice and see how the current window stacks up.</p>
+      <ul>
+        <li><b>Previous period</b> — immediately preceding window of equal length (recommended for Hyperliquid strategies).</li>
+        <li><b>Year-over-year</b> — same calendar dates one year earlier (works best when enough history exists).</li>
+        <li><b>Custom</b> — pick any comparison start/end.</li>
+      </ul>
+      <p>Metric cards show <b>▲/▼ deltas</b> vs the comparison (green/red depends on whether higher is better). The equity chart overlays both periods aligned by elapsed time. If the comparison period has no data, you still get primary results plus a yellow warning.</p>
+    </section>
+
+    <section id="results">
+      <h2>Reading results</h2>
+      <ul>
+        <li><b>Summary &amp; recommendations</b> — AI narrative when configured; otherwise a rule-based summary. Both reflect comparison trends when enabled.</li>
+        <li><b>Metric cards</b> — hover the <b>i</b> dot on each label for a plain-English definition.</li>
+        <li><b>Portfolio equity chart</b> — green = current period; dashed amber = comparison. Blue dashed line = ETH reference price. Tap <b>Fullscreen</b> for detail.</li>
+        <li><b>Events</b> — warnings (skipped actions, liquidations) and errors; timestamps in UTC.</li>
+        <li><b>Trades</b> — every executed swap, perp, or yield action with fees and realized PnL.</li>
+      </ul>
+    </section>
+
+    <section id="metrics">
+      <h2>Metrics glossary</h2>
+      <table class="metrics">
+        <thead><tr><th>Metric</th><th>Meaning</th></tr></thead>
+        <tbody>
+          <tr><td>Final equity</td><td>Mark-to-market account value at the end (cash + positions).</td></tr>
+          <tr><td>Total return</td><td>(Final equity − initial capital) ÷ initial capital, as a percentage.</td></tr>
+          <tr><td>Max drawdown</td><td>Largest peak-to-trough drop in equity during the period. Lower is better.</td></tr>
+          <tr><td>Sharpe ratio</td><td>Risk-adjusted return (annualized mean ÷ volatility of per-candle returns). Higher is better.</td></tr>
+          <tr><td>Trades</td><td>Count of executed trades, including forced liquidations.</td></tr>
+          <tr><td>Total fees</td><td>Sum of modeled trading fees, slippage, and gas.</td></tr>
+          <tr><td>Win rate</td><td>Share of closing trades with positive realized PnL.</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="summary">
+      <h2>AI summary</h2>
+      <p>After a run, the app requests a short narrative plus 2–4 recommendations from an LLM (when an API key is configured on the server). The summary uses your metrics and, if comparison is on, period-over-period trends.</p>
+      <p>If the LLM is unavailable, a <b>deterministic fallback</b> still produces a summary — the badge shows <em>AI generated</em> vs <em>Auto (heuristic)</em>.</p>
+    </section>
+
+    <section id="data">
+      <h2>Data sources</h2>
+      <ul>
+        <li><b>Binance</b> — crypto spot prices for EVM chains (ETH, etc.).</li>
+        <li><b>Hyperliquid</b> — spot/perp candles and 8h funding rates. History limited to ~5000 recent candles.</li>
+        <li><b>Yahoo Finance</b> — US equity OHLCV (no API key). Alpha Vantage is used as fallback when configured.</li>
+        <li><b>Stablecoins</b> — USDC/USDT/DAI pegged at $1.</li>
+      </ul>
+      <div class="warn-box">Hyperliquid spot/perp history is relatively short. For comparisons on HL strategies, prefer <b>Previous period</b> over year-over-year.</div>
+    </section>
+
+    <section id="mobile">
+      <h2>Mobile</h2>
+      <p>On phones, the app uses a dedicated mobile layout with Setup and Results tabs, a sticky run button, and touch-friendly controls. Add to your home screen (Safari → Share → Add to Home Screen) for an app-like experience.</p>
+    </section>
+
+    <section id="faq" class="faq">
+      <h2>FAQ</h2>
+      <details>
+        <summary>“No market data returned for the requested range”</summary>
+        <p>Check that your date range has data for the symbols and chain in the graph. Hyperliquid history is limited; try a recent range or use Binance/EVM or equity examples. For comparison failures, the primary run may still succeed — look for the yellow warning.</p>
+      </details>
+      <details>
+        <summary>Why are there warning events but the backtest still finished?</summary>
+        <p>Insufficient balance or margin skips an action and logs a warning instead of crashing the whole run. Review Events for details (e.g. “Insufficient USDC”).</p>
+      </details>
+      <details>
+        <summary>What timezone are dates in?</summary>
+        <p>All dates and chart times are UTC. The UTC badge on the date picker is your reminder.</p>
+      </details>
+      <details>
+        <summary>Can I backtest stocks?</summary>
+        <p>Yes — use <code>"chain": "equity"</code> on swap actions (e.g. buy AAPL with USDC). Load the “US Equity - Buy $1000 of AAPL” example.</p>
+      </details>
+      <details>
+        <summary>Is this live trading?</summary>
+        <p>No. This is simulation only — no wallets, no real orders. Results include modeled fees and slippage, not exact exchange execution.</p>
+      </details>
+    </section>
+
+  </main>
+</div>
+
+<footer>
+  <div class="wrap">
+    Catalyst Backtester · <a href="/">App</a> · <a href="/overview.html">What we built</a> ·
+    Questions? Check the graph JSON and date range first, then Events in your results.
+  </div>
+</footer>
+
+</body>
+</html>
