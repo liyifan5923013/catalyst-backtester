@@ -547,8 +547,13 @@ Postgres + the app wired via `DATABASE_URL`.
   (offline), asserting equity is finite/non-negative and metrics are self-consistent.
 - `graph_gen.py` + `test_fuzz.py` — a seeded random graph generator (also runnable as
   `python -m tests.graph_gen --seed N` to emit a graph for the web/mobile UI) plus a
-  property-based suite that runs **250 generated graphs** crash-free, asserting finite,
-  non-negative equity and metrics that reconcile with the equity curve and trade log.
+  property-based suite over **250 generated graphs**. Two complementary checks:
+  *robustness* (each runs crash-free with finite, non-negative equity and metrics that
+  reconcile with the equity curve and trade log) and *accuracy* (an independent
+  conservation-of-value oracle: with zero costs, no funding, and constant prices, equity
+  must stay exactly at initial capital for any graph, catching any accounting bug).
+  Numerical correctness of the math itself is pinned by the hand-computed oracle assertions
+  in `test_execution.py`.
 - `test_prewarm.py` — watchlist parsing, lifespan startup wiring, interval cadence
   (incl. minute-level), and the per-source throttle that protects rate-limited providers.
 - `test_data.py` — yield-only timeline synthesis (no network).
