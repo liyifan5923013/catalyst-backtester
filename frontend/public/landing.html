@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Catalyst Backtesting Engine</title>
+<meta name="description" content="Replay Catalyst strategy graphs against historical market data. App, help center, overview, design doc, and API in one place." />
+<style>
+  :root {
+    --bg: #0d1117;
+    --panel: #161b22;
+    --panel2: #1c2330;
+    --border: #2d3748;
+    --text: #e6edf3;
+    --muted: #9aa7b4;
+    --accent: #4ade80;
+    --accent2: #60a5fa;
+    --chip: #21304a;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  a { color: var(--accent2); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .wrap { max-width: 1040px; margin: 0 auto; padding: 0 24px; }
+
+  header.hero {
+    border-bottom: 1px solid var(--border);
+    background: linear-gradient(180deg, #11202b 0%, var(--bg) 100%);
+    padding: 72px 0 56px; text-align: center;
+  }
+  .eyebrow { color: var(--accent); font-weight: 600; letter-spacing: .1em; text-transform: uppercase; font-size: 13px; }
+  h1 { font-size: 44px; margin: 12px 0 10px; line-height: 1.12; }
+  .tagline { color: var(--muted); font-size: 19px; max-width: 680px; margin: 0 auto 28px; }
+  .btns { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; }
+  .btn {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 12px 22px; border-radius: 8px; font-weight: 600; font-size: 15px;
+    border: 1px solid var(--border); background: var(--panel); color: var(--text);
+  }
+  .btn.primary { background: var(--accent); color: #06240f; border-color: var(--accent); }
+  .btn:hover { text-decoration: none; border-color: var(--accent2); }
+
+  main { padding: 48px 0 64px; }
+  .section-title { font-size: 14px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 0 0 18px; }
+
+  .grid { display: grid; gap: 18px; grid-template-columns: repeat(3, 1fr); }
+  .card {
+    display: flex; flex-direction: column; gap: 8px;
+    background: var(--panel); border: 1px solid var(--border); border-radius: 12px;
+    padding: 22px; color: var(--text); transition: border-color .15s, transform .15s;
+  }
+  .card:hover { text-decoration: none; border-color: var(--accent2); transform: translateY(-2px); }
+  .card .ic {
+    width: 38px; height: 38px; border-radius: 9px; display: grid; place-items: center;
+    background: var(--panel2); border: 1px solid var(--border); margin-bottom: 6px;
+  }
+  .card .ic svg { width: 20px; height: 20px; stroke: var(--accent); fill: none; stroke-width: 1.8; }
+  .card h3 { margin: 0; font-size: 18px; display: flex; align-items: center; gap: 8px; }
+  .card p { margin: 0; color: var(--muted); font-size: 14.5px; flex: 1; }
+  .card .go { color: var(--accent2); font-size: 14px; font-weight: 600; margin-top: 4px; }
+  .card.feature { border-color: #2c416b; background: linear-gradient(180deg, #16233a 0%, var(--panel) 70%); }
+
+  .meta-row { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; margin-top: 36px; }
+  .chip { background: var(--chip); color: #cfe0ff; border: 1px solid #2c416b;
+          border-radius: 999px; padding: 6px 14px; font-size: 13px; font-weight: 500; }
+
+  footer { border-top: 1px solid var(--border); color: var(--muted); font-size: 13px; padding: 24px 0 40px; text-align: center; }
+
+  @media (max-width: 860px) { .grid { grid-template-columns: 1fr 1fr; } }
+  @media (max-width: 560px) {
+    h1 { font-size: 34px; }
+    .grid { grid-template-columns: 1fr; }
+    header.hero { padding: 52px 0 40px; }
+  }
+</style>
+</head>
+<body>
+  <header class="hero">
+    <div class="wrap">
+      <div class="eyebrow">Catalyst</div>
+      <h1>Backtesting Engine</h1>
+      <p class="tagline">Replay Catalyst strategy graphs against historical market data — EVM swaps, Hyperliquid spot &amp; perps, EVM yield, and US equities — with period comparison and an AI summary.</p>
+      <div class="btns">
+        <a class="btn primary" href="/">Launch the app</a>
+        <a class="btn" href="/help.html">How it works</a>
+      </div>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <p class="section-title">Explore</p>
+    <div class="grid">
+      <a class="card feature" href="/">
+        <div class="ic"><svg viewBox="0 0 24 24"><path d="M3 17l5-5 4 4 8-8"/><path d="M16 8h5v5"/></svg></div>
+        <h3>Run a backtest</h3>
+        <p>Paste a strategy graph or pick an example, choose a date range, and replay it tick-by-tick. See equity curve, trades, metrics, and comparisons.</p>
+        <span class="go">Open the app &rarr;</span>
+      </a>
+
+      <a class="card" href="/help.html">
+        <div class="ic"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 1 1 3.5 2.3c-.8.4-1 .9-1 1.7"/><path d="M12 17h.01"/></svg></div>
+        <h3>Help Center</h3>
+        <p>Getting started, graph semantics, supported actions, period comparison, reading results, the metrics glossary, data sources, mobile, and FAQs.</p>
+        <span class="go">Read the guide &rarr;</span>
+      </a>
+
+      <a class="card" href="/overview.html">
+        <div class="ic"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg></div>
+        <h3>Overview</h3>
+        <p>The one-pager: what it does, the architecture diagrams, the tech stack, the engineering challenges, and how it's tested.</p>
+        <span class="go">See what we built &rarr;</span>
+      </a>
+
+      <a class="card" href="https://github.com/liyifan5923013/catalyst-backtester/blob/main/docs/DESIGN.md">
+        <div class="ic"><svg viewBox="0 0 24 24"><path d="M6 3h9l4 4v14a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/><path d="M14 3v5h5"/><path d="M8 13h8M8 17h6"/></svg></div>
+        <h3>Design doc</h3>
+        <p>The full engineering design: system architecture, data layer &amp; persistence, the tick-loop simulator, AWS topology, and trade-offs.</p>
+        <span class="go">Read DESIGN.md &rarr;</span>
+      </a>
+
+      <a class="card" href="/docs">
+        <div class="ic"><svg viewBox="0 0 24 24"><path d="M8 6l-5 6 5 6"/><path d="M16 6l5 6-5 6"/></svg></div>
+        <h3>API docs</h3>
+        <p>Interactive OpenAPI/Swagger for the backend: <code>/api/backtest</code>, <code>/api/summary</code>, and <code>/api/examples</code>.</p>
+        <span class="go">Try the API &rarr;</span>
+      </a>
+
+      <a class="card" href="https://github.com/liyifan5923013/catalyst-backtester">
+        <div class="ic"><svg viewBox="0 0 24 24"><path d="M9 19c-4 1.5-4-2.5-6-3m12 5v-3.5c0-1 .1-1.4-.5-2 2.8-.3 5.5-1.4 5.5-6a4.6 4.6 0 0 0-1.3-3.2 4.3 4.3 0 0 0-.1-3.2s-1-.3-3.4 1.3a11.5 11.5 0 0 0-6 0C6.3 2.6 5.3 2.9 5.3 2.9a4.3 4.3 0 0 0-.1 3.2A4.6 4.6 0 0 0 4 9.3c0 4.6 2.7 5.7 5.5 6-.6.6-.6 1.2-.5 2V21"/></svg></div>
+        <h3>Source code</h3>
+        <p>The GitHub repository: backend engine, React/TypeScript frontend, Terraform infra, CI/CD, and the full test suite.</p>
+        <span class="go">View on GitHub &rarr;</span>
+      </a>
+    </div>
+
+    <div class="meta-row">
+      <span class="chip">FastAPI + React</span>
+      <span class="chip">AWS App Runner + RDS</span>
+      <span class="chip">Terraform IaC</span>
+      <span class="chip">616 tests</span>
+      <span class="chip">AI summary</span>
+    </div>
+  </main>
+
+  <footer>
+    <div class="wrap">Catalyst Backtesting Engine &middot; <a href="/">App</a> &middot; <a href="/help.html">Help</a> &middot; <a href="/overview.html">Overview</a> &middot; <a href="/docs">API</a></div>
+  </footer>
+</body>
+</html>
