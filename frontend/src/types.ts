@@ -52,3 +52,9 @@ export interface ExampleGraph {
   title: string;
   graph: unknown;
 }
+
+export interface SummaryResponse {
+  summary: string;
+  recommendations: string[];
+  source: string; // "llm" | "rule"
+}

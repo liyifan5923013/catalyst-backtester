@@ -77,3 +77,23 @@ variable "db_engine_version" {
   type        = string
   default     = "16"
 }
+
+# -- AI summary (optional) --------------------------------------------------
+variable "openai_api_key" {
+  description = "OpenAI-compatible API key for LLM summaries. Leave empty to use the deterministic rule-based fallback. Set via TF_VAR_openai_api_key; do not commit."
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "openai_model" {
+  description = "Chat model for AI summaries (OpenAI-compatible)."
+  type        = string
+  default     = "gpt-4o-mini"
+}
+
+variable "openai_base_url" {
+  description = "OpenAI-compatible API base URL (override for Azure/OpenRouter/etc.)."
+  type        = string
+  default     = "https://api.openai.com/v1"
+}

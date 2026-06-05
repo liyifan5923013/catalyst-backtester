@@ -145,6 +145,19 @@ resource "aws_secretsmanager_secret_version" "database_url" {
   secret_string = local.database_url
 }
 
+# Optional: OpenAI-compatible API key for LLM summaries. Only created when a
+# key is supplied; otherwise the app falls back to the rule-based summary.
+resource "aws_secretsmanager_secret" "openai" {
+  count = var.openai_api_key == "" ? 0 : 1
+  name  = "${local.name}/openai-api-key"
+}
+
+resource "aws_secretsmanager_secret_version" "openai" {
+  count         = var.openai_api_key == "" ? 0 : 1
+  secret_id     = aws_secretsmanager_secret.openai[0].id
+  secret_string = var.openai_api_key
+}
+
 # ---------------------------------------------------------------------------
 # IAM: App Runner ECR-pull (access) role and runtime (instance) role
 # ---------------------------------------------------------------------------
@@ -185,8 +198,11 @@ resource "aws_iam_role" "apprunner_instance" {
 
 data "aws_iam_policy_document" "apprunner_secrets" {
   statement {
-    actions   = ["secretsmanager:GetSecretValue"]
-    resources = [aws_secretsmanager_secret.database_url.arn]
+    actions = ["secretsmanager:GetSecretValue"]
+    resources = concat(
+      [aws_secretsmanager_secret.database_url.arn],
+      var.openai_api_key == "" ? [] : [aws_secretsmanager_secret.openai[0].arn],
+    )
   }
 }
 
@@ -331,9 +347,15 @@ resource "aws_apprunner_service" "app" {
       image_configuration {
         port = var.app_port
 
-        runtime_environment_secrets = {
-          DATABASE_URL = aws_secretsmanager_secret.database_url.arn
+        runtime_environment_variables = {
+          OPENAI_MODEL    = var.openai_model
+          OPENAI_BASE_URL = var.openai_base_url
         }
+
+        runtime_environment_secrets = merge(
+          { DATABASE_URL = aws_secretsmanager_secret.database_url.arn },
+          var.openai_api_key == "" ? {} : { OPENAI_API_KEY = aws_secretsmanager_secret.openai[0].arn },
+        )
       }
     }
   }

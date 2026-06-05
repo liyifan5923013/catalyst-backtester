@@ -1,9 +1,15 @@
 import { useEffect, useMemo, useState } from "react";
-import { fetchExamples, runBacktest } from "./api";
-import type { BacktestResult, ExampleGraph } from "./types";
+import { fetchExamples, fetchSummary, runBacktest } from "./api";
+import type { BacktestResult, ExampleGraph, SummaryResponse } from "./types";
 import { BacktestForm } from "./components/BacktestForm";
 import { GraphInput } from "./components/GraphInput";
 import { ResultsDashboard } from "./components/ResultsDashboard";
+import {
+  COMPARE_LABELS,
+  describeGraph,
+  effectiveCompareRange,
+  type CompareState,
+} from "./utils";
 
 export interface Config {
   start: string;
@@ -38,9 +44,20 @@ export default function App() {
     const start = new Date(end.getTime() - 120 * 24 * 3600 * 1000);
     return { start: iso(start), end: iso(end), interval: "1h", initial_capital: 10000 };
   });
+  const [compare, setCompare] = useState<CompareState>(() => ({
+    enabled: false,
+    mode: "previous",
+    start: "",
+    end: "",
+  }));
   const [result, setResult] = useState<BacktestResult | null>(null);
+  const [compareResult, setCompareResult] = useState<BacktestResult | null>(null);
+  const [compareLabel, setCompareLabel] = useState<string | null>(null);
+  const [summary, setSummary] = useState<SummaryResponse | null>(null);
+  const [summaryLoading, setSummaryLoading] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [collapsed, setCollapsed] = useState(false);
 
   useEffect(() => {
     fetchExamples().then(setExamples).catch(() => setExamples([]));
@@ -61,14 +78,68 @@ export default function App() {
     }
     setLoading(true);
     setError(null);
+    setSummary(null);
     try {
-      const res = await runBacktest({ graph: parsedGraph.value, ...config });
-      setResult(res);
+      const graph = parsedGraph.value;
+      const primary = await runBacktest({ graph, ...config });
+
+      let cmp: BacktestResult | null = null;
+      let cmpLabel: string | null = null;
+      if (compare.enabled) {
+        const range = effectiveCompareRange(config, compare);
+        if (!range.start || !range.end) {
+          throw new Error("Please choose a comparison start and end date.");
+        }
+        cmpLabel = COMPARE_LABELS[compare.mode];
+        cmp = await runBacktest({
+          graph,
+          start: range.start,
+          end: range.end,
+          interval: config.interval,
+          initial_capital: config.initial_capital,
+        });
+      }
+
+      setResult(primary);
+      setCompareResult(cmp);
+      setCompareLabel(cmpLabel);
+
+      // Fire-and-forget the AI summary; results render immediately regardless.
+      void loadSummary(primary, cmp, cmpLabel, graph);
     } catch (e) {
       setError((e as Error).message);
       setResult(null);
+      setCompareResult(null);
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function loadSummary(
+    primary: BacktestResult,
+    cmp: BacktestResult | null,
+    cmpLabel: string | null,
+    graph: unknown
+  ) {
+    setSummaryLoading(true);
+    try {
+      const range = compare.enabled ? effectiveCompareRange(config, compare) : null;
+      const res = await fetchSummary({
+        metrics: primary.metrics,
+        start: primary.start,
+        end: primary.end,
+        interval: primary.interval,
+        strategy: describeGraph(graph),
+        comparison_metrics: cmp ? cmp.metrics : null,
+        comparison_label: cmpLabel,
+        comparison_start: range?.start ?? null,
+        comparison_end: range?.end ?? null,
+      });
+      setSummary(res);
+    } catch {
+      setSummary(null);
+    } finally {
+      setSummaryLoading(false);
     }
   }
 
@@ -81,24 +152,41 @@ export default function App() {
     <div className="app">
       <header className="app-header">
         <h1>Catalyst Backtester</h1>
-        <p>Replay a Catalyst strategy graph against historical market data.</p>
+        <p>Replay a Catalyst strategy graph against historical market data. All times in UTC.</p>
       </header>
 
-      <div className="layout">
-        <aside className="panel sidebar">
-          <BacktestForm
-            config={config}
-            onChange={setConfig}
-            examples={examples}
-            onSelectExample={handleSelectExample}
-            onRun={handleRun}
-            loading={loading}
-            canRun={!parsedGraph.error}
-          />
-          <GraphInput value={graphText} onChange={setGraphText} jsonError={parsedGraph.error} />
-        </aside>
+      <div className={`layout ${collapsed ? "collapsed" : ""}`}>
+        {!collapsed && (
+          <aside className="panel sidebar">
+            <button
+              type="button"
+              className="collapse-btn"
+              title="Hide the inputs panel to focus on results"
+              onClick={() => setCollapsed(true)}
+            >
+              ‹ Hide
+            </button>
+            <BacktestForm
+              config={config}
+              onChange={setConfig}
+              examples={examples}
+              onSelectExample={handleSelectExample}
+              onRun={handleRun}
+              loading={loading}
+              canRun={!parsedGraph.error}
+              compare={compare}
+              onCompareChange={setCompare}
+            />
+            <GraphInput value={graphText} onChange={setGraphText} jsonError={parsedGraph.error} />
+          </aside>
+        )}
 
         <main className="panel results">
+          {collapsed && (
+            <button type="button" className="show-btn" onClick={() => setCollapsed(false)}>
+              ☰ Show inputs
+            </button>
+          )}
           {error && <div className="alert error">{error}</div>}
           {loading && <div className="alert info">Running backtest. Fetching market data may take a few seconds…</div>}
           {!loading && !result && !error && (
@@ -107,7 +195,15 @@ export default function App() {
               <p>Pick an example or paste a graph, choose a date range, and run a backtest.</p>
             </div>
           )}
-          {result && <ResultsDashboard result={result} />}
+          {result && (
+            <ResultsDashboard
+              result={result}
+              comparison={compareResult}
+              comparisonLabel={compareLabel}
+              summary={summary}
+              summaryLoading={summaryLoading}
+            />
+          )}
         </main>
       </div>
     </div>

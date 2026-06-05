@@ -7,8 +7,9 @@ from typing import List
 
 from fastapi import APIRouter, HTTPException
 
-from ..models import BacktestRequest, BacktestResult
+from ..models import BacktestRequest, BacktestResult, SummaryRequest, SummaryResponse
 from ..engine.simulator import run_backtest
+from ..summary import generate_summary
 
 router = APIRouter(prefix="/api")
 
@@ -48,3 +49,11 @@ def backtest(req: BacktestRequest) -> BacktestResult:
         raise HTTPException(status_code=502, detail=str(exc))
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(status_code=500, detail=f"Backtest failed: {exc}")
+
+
+@router.post("/summary", response_model=SummaryResponse)
+def summary(req: SummaryRequest) -> SummaryResponse:
+    try:
+        return generate_summary(req)
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=500, detail=f"Summary failed: {exc}")

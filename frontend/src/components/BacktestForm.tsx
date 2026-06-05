@@ -1,5 +1,11 @@
 import type { Config } from "../App";
 import type { ExampleGraph } from "../types";
+import {
+  COMPARE_LABELS,
+  effectiveCompareRange,
+  type CompareMode,
+  type CompareState,
+} from "../utils";
 
 interface Props {
   config: Config;
@@ -9,11 +15,31 @@ interface Props {
   onRun: () => void;
   loading: boolean;
   canRun: boolean;
+  compare: CompareState;
+  onCompareChange: (c: CompareState) => void;
 }
 
 const INTERVALS = ["15m", "1h", "4h", "1d"];
 
-export function BacktestForm({ config, onChange, examples, onSelectExample, onRun, loading, canRun }: Props) {
+const MODES: { id: CompareMode; label: string; hint: string }[] = [
+  { id: "previous", label: "环比 · Prev. period", hint: "Immediately preceding window of equal length" },
+  { id: "yoy", label: "同比 · Year-over-year", hint: "Same calendar window one year earlier" },
+  { id: "custom", label: "Custom", hint: "Pick any comparison range" },
+];
+
+export function BacktestForm({
+  config,
+  onChange,
+  examples,
+  onSelectExample,
+  onRun,
+  loading,
+  canRun,
+  compare,
+  onCompareChange,
+}: Props) {
+  const cmpRange = effectiveCompareRange(config, compare);
+
   return (
     <div className="form">
       <label className="field">
@@ -28,15 +54,33 @@ export function BacktestForm({ config, onChange, examples, onSelectExample, onRu
         </select>
       </label>
 
-      <div className="field-row">
-        <label className="field">
-          <span>Start</span>
-          <input type="date" value={config.start} onChange={(e) => onChange({ ...config, start: e.target.value })} />
-        </label>
-        <label className="field">
-          <span>End</span>
-          <input type="date" value={config.end} onChange={(e) => onChange({ ...config, end: e.target.value })} />
-        </label>
+      <div className="field-group">
+        <div className="field-group-head">
+          <span>Analysis period</span>
+          <span className="tz-badge" title="All dates and times are interpreted and displayed in UTC.">
+            UTC
+          </span>
+        </div>
+        <div className="field-row">
+          <label className="field">
+            <span>Start</span>
+            <input
+              className="date-input"
+              type="date"
+              value={config.start}
+              onChange={(e) => onChange({ ...config, start: e.target.value })}
+            />
+          </label>
+          <label className="field">
+            <span>End</span>
+            <input
+              className="date-input"
+              type="date"
+              value={config.end}
+              onChange={(e) => onChange({ ...config, end: e.target.value })}
+            />
+          </label>
+        </div>
       </div>
 
       <div className="field-row">
@@ -62,8 +106,63 @@ export function BacktestForm({ config, onChange, examples, onSelectExample, onRu
         </label>
       </div>
 
+      <div className="field-group">
+        <label className="compare-toggle">
+          <input
+            type="checkbox"
+            checked={compare.enabled}
+            onChange={(e) => onCompareChange({ ...compare, enabled: e.target.checked })}
+          />
+          <span>Compare to another period</span>
+        </label>
+
+        {compare.enabled && (
+          <div className="compare-body">
+            <div className="seg">
+              {MODES.map((m) => (
+                <button
+                  key={m.id}
+                  type="button"
+                  title={m.hint}
+                  className={`seg-btn ${compare.mode === m.id ? "active" : ""}`}
+                  onClick={() => onCompareChange({ ...compare, mode: m.id })}
+                >
+                  {m.label}
+                </button>
+              ))}
+            </div>
+
+            <div className="field-row">
+              <label className="field">
+                <span>Compare start</span>
+                <input
+                  className="date-input"
+                  type="date"
+                  value={compare.mode === "custom" ? compare.start : cmpRange.start}
+                  disabled={compare.mode !== "custom"}
+                  onChange={(e) => onCompareChange({ ...compare, start: e.target.value })}
+                />
+              </label>
+              <label className="field">
+                <span>Compare end</span>
+                <input
+                  className="date-input"
+                  type="date"
+                  value={compare.mode === "custom" ? compare.end : cmpRange.end}
+                  disabled={compare.mode !== "custom"}
+                  onChange={(e) => onCompareChange({ ...compare, end: e.target.value })}
+                />
+              </label>
+            </div>
+            <p className="compare-hint">
+              Comparing against the <strong>{COMPARE_LABELS[compare.mode]}</strong> ({cmpRange.start} → {cmpRange.end}, UTC).
+            </p>
+          </div>
+        )}
+      </div>
+
       <button className="run-btn" onClick={onRun} disabled={loading || !canRun}>
-        {loading ? "Running…" : "Run backtest"}
+        {loading ? "Running…" : compare.enabled ? "Run & compare" : "Run backtest"}
       </button>
     </div>
   );

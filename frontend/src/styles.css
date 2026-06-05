@@ -45,6 +45,9 @@ body {
   gap: 20px;
   align-items: start;
 }
+.layout.collapsed {
+  grid-template-columns: 1fr;
+}
 
 .panel {
   background: var(--panel);
@@ -56,6 +59,37 @@ body {
 .sidebar {
   position: sticky;
   top: 24px;
+}
+
+/* collapse / expand sidebar */
+.collapse-btn {
+  float: right;
+  margin: -4px -4px 4px 0;
+  background: var(--panel-2);
+  color: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.collapse-btn:hover {
+  color: var(--text);
+  border-color: var(--accent-blue);
+}
+.show-btn {
+  background: var(--panel-2);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  margin-bottom: 16px;
+}
+.show-btn:hover {
+  border-color: var(--accent-blue);
 }
 
 /* form */
@@ -96,6 +130,113 @@ textarea:focus {
   outline: none;
   border-color: var(--accent-blue);
 }
+/* date inputs: lift them off the background so the picker affordance is visible */
+.date-input {
+  background: #20283a;
+  border-color: #3a465f;
+  cursor: pointer;
+}
+.date-input:hover:not(:disabled) {
+  border-color: var(--accent-blue);
+}
+.date-input:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.date-input::-webkit-calendar-picker-indicator {
+  filter: invert(0.85) brightness(1.4);
+  opacity: 0.95;
+  cursor: pointer;
+  padding: 2px;
+  border-radius: 4px;
+}
+.date-input::-webkit-calendar-picker-indicator:hover {
+  background: rgba(96, 165, 250, 0.25);
+}
+
+/* grouped fields (analysis period, comparison) */
+.field-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.015);
+}
+.field-group-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12px;
+  color: var(--muted);
+}
+.tz-badge {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: rgba(96, 165, 250, 0.15);
+  color: var(--accent-blue);
+  cursor: help;
+}
+
+/* comparison controls */
+.compare-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  cursor: pointer;
+}
+.compare-toggle input {
+  width: 15px;
+  height: 15px;
+  accent-color: var(--accent-blue);
+}
+.compare-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.seg {
+  display: flex;
+  gap: 4px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 3px;
+}
+.seg-btn {
+  flex: 1;
+  background: transparent;
+  color: var(--muted);
+  border: none;
+  border-radius: 6px;
+  padding: 6px 4px;
+  font-size: 11px;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+}
+.seg-btn:hover {
+  color: var(--text);
+}
+.seg-btn.active {
+  background: var(--accent-blue);
+  color: #06121f;
+  font-weight: 600;
+}
+.compare-hint {
+  margin: 0;
+  font-size: 11px;
+  color: var(--muted);
+  line-height: 1.4;
+}
+.compare-hint strong {
+  color: var(--text);
+}
+
 .run-btn {
   margin-top: 4px;
   background: var(--accent);
@@ -194,6 +335,27 @@ textarea:focus {
 .metric-label {
   font-size: 12px;
   color: var(--muted);
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.info-dot {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 13px;
+  height: 13px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 9px;
+  font-style: italic;
+  font-weight: 700;
+  cursor: help;
+}
+.info-dot:hover {
+  color: var(--text);
+  border-color: var(--accent-blue);
 }
 .metric-value {
   font-size: 20px;
@@ -205,6 +367,95 @@ textarea:focus {
 }
 .metric-value.neg {
   color: var(--neg);
+}
+.metric-delta {
+  font-size: 11px;
+  font-weight: 500;
+}
+.metric-delta.pos {
+  color: var(--pos);
+}
+.metric-delta.neg {
+  color: var(--neg);
+}
+.metric-delta.dim {
+  color: var(--muted);
+}
+.metric-delta-label {
+  color: var(--muted);
+  font-weight: 400;
+}
+
+/* AI summary card */
+.summary-card {
+  background: linear-gradient(180deg, rgba(96, 165, 250, 0.08), rgba(96, 165, 250, 0.02));
+  border: 1px solid rgba(96, 165, 250, 0.28);
+  border-radius: 10px;
+  padding: 16px;
+  margin-bottom: 20px;
+}
+.summary-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+.summary-head h3 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+.summary-badge {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+.summary-badge.llm {
+  background: rgba(167, 139, 250, 0.18);
+  color: #c4b5fd;
+}
+.summary-badge.rule {
+  background: rgba(139, 147, 167, 0.18);
+  color: var(--muted);
+}
+.summary-text {
+  margin: 0;
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: var(--text);
+}
+.summary-loading {
+  margin: 0;
+  font-size: 13px;
+  color: var(--muted);
+}
+.summary-recs {
+  margin: 12px 0 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.summary-recs li {
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+/* chart header */
+.chart-head {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 12px;
+}
+.chart-head h3 {
+  margin: 0;
+}
+.chart-sub {
+  font-size: 11px;
+  color: var(--muted);
 }
 
 .chart-card,

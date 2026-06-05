@@ -111,3 +111,25 @@ class BacktestResult(BaseModel):
     interval: str
     start: str
     end: str
+
+
+# ---------------------------------------------------------------------------
+# AI summary (LLM-generated narrative + recommendations, with rule-based fallback)
+# ---------------------------------------------------------------------------
+class SummaryRequest(BaseModel):
+    metrics: Metrics
+    start: str
+    end: str
+    interval: str
+    strategy: Optional[str] = None  # short human description of the graph
+    # Optional period-over-period comparison.
+    comparison_metrics: Optional[Metrics] = None
+    comparison_label: Optional[str] = None  # e.g. "previous period" / "same period last year"
+    comparison_start: Optional[str] = None
+    comparison_end: Optional[str] = None
+
+
+class SummaryResponse(BaseModel):
+    summary: str
+    recommendations: List[str] = Field(default_factory=list)
+    source: str  # "llm" | "rule"
