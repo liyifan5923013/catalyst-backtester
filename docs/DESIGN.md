@@ -2,7 +2,7 @@
 
 Status: Implemented (MVP)
 Owner: Backtesting
-Last updated: 2026-06-04
+Last updated: 2026-06-05
 
 ---
 
@@ -20,6 +20,7 @@ It is delivered as a web app: a Python/FastAPI backend (the engine) and a React/
 frontend (input + reporting), deployed as a single Docker image.
 
 - Live app: a single-origin site (FastAPI serves the built React app at `/`, API at `/api/*`).
+- Architecture diagrams: [§5 System architecture](#5-system-architecture) (end-to-end, AWS, request flow).
 - Code: [backend/](../backend), [frontend/](../frontend).
 
 ---
@@ -103,49 +104,163 @@ Built in [backend/app/engine/graph.py](../backend/app/engine/graph.py) (structur
 
 ## 5. System architecture
 
-```mermaid
-flowchart LR
-  user[Browser]
-  subgraph fe [React + Vite + TS]
-    form[Graph JSON + config form]
-    dash[Dashboard: equity chart, metrics, trades, events]
-  end
-  subgraph be [FastAPI]
-    api["POST /api/backtest"]
-    sumapi["POST /api/summary"]
-    sum[summary.py: LLM + rule-based fallback]
-    subgraph engine [Engine]
-      parser[graph.py: parse + validate + trigger map]
-      sim[simulator.py: tick loop]
-      sig[signals.py: rising-edge eval]
-      exe[execution.py: swap / perp / yield]
-      pf[portfolio.py: balances + positions]
-      met[metrics.py]
-    end
-    subgraph data [Data layer]
-      prov[providers.py: Binance + Hyperliquid]
-      repo[repository.py: read-through gap-fill]
-      store[store.py: candles/funding/coverage]
-      cache[cache.py: parquet fallback]
-    end
-  end
-  binance[Binance klines mirror]
-  hl[Hyperliquid info API]
-  ts[(TimescaleDB)]
-  llm[OpenAI-compatible LLM]
+### End-to-end architecture
 
-  user --> form --> api --> parser --> sim
-  sim --> sig --> exe --> pf --> met --> api --> dash --> user
+Single Docker image: FastAPI serves the built React SPA at `/` and the JSON API at `/api/*`.
+The frontend may orchestrate **two backtest runs** (primary + comparison window) and then call
+the summary endpoint with both sets of metrics.
+
+```mermaid
+flowchart TB
+  subgraph client [Client]
+    browser[Browser]
+  end
+
+  subgraph fe [Frontend — React + Vite + TypeScript]
+    form["Inputs panel<br/>graph JSON · dates · comparison · run"]
+    dash["Results dashboard<br/>metrics · chart · trades · events · AI summary"]
+  end
+
+  subgraph api [API layer — FastAPI]
+    backtest["POST /api/backtest"]
+    summary["POST /api/summary"]
+    examples["GET /api/examples"]
+    static["Static SPA + /api/health"]
+  end
+
+  subgraph engine [Backtest engine]
+    graph[graph.py<br/>parse · validate · triggers]
+    sim[simulator.py<br/>tick loop]
+    sig[signals.py]
+    exe[execution.py<br/>swap · perp · yield]
+    pf[portfolio.py]
+    met[metrics.py]
+  end
+
+  subgraph ai [AI summary]
+    sum[summary.py<br/>LLM or rule-based fallback]
+  end
+
+  subgraph data [Data layer]
+    prov[providers.py<br/>Binance + Hyperliquid]
+    repo[repository.py<br/>read-through gap-fill]
+    cache[(Parquet cache<br/>default / HF demo)]
+    db[(Postgres / TimescaleDB<br/>opt-in via DATABASE_URL)]
+  end
+
+  subgraph ext [External services]
+    binance[Binance klines mirror]
+    hl[Hyperliquid info API]
+    llm[OpenAI-compatible LLM<br/>optional]
+  end
+
+  browser --> form
+  browser --> dash
+  form --> backtest
+  dash --> summary
+  form --> examples
+  browser --> static
+
+  backtest --> graph --> sim
+  sim --> sig --> exe --> pf --> met --> backtest
   sim --> prov
-  prov -->|"DATABASE_URL set"| repo --> store --> ts
-  prov -->|"unset"| cache
-  repo -->|fetch gaps| binance
-  repo -->|fetch gaps| hl
+
+  prov -->|no DATABASE_URL| cache
+  prov -->|DATABASE_URL set| repo --> db
+  repo -->|fetch missing gaps| binance
+  repo -->|fetch missing gaps| hl
   prov --> binance
   prov --> hl
-  dash -->|metrics + comparison| sumapi --> sum
-  sum -->|"OPENAI_API_KEY set"| llm
-  sum -->|"unset / on error"| sumapi
+
+  summary --> sum
+  sum -->|OPENAI_API_KEY set| llm
+  sum -->|unset or LLM error| dash
+  met --> dash
+  backtest --> dash
+```
+
+### AWS deployment architecture (production)
+
+Live URL: `https://qkz2sj2ca6.us-east-1.awsapprunner.com` · one-pager: `/overview.html`
+
+```mermaid
+flowchart TB
+  subgraph cicd [CI/CD]
+    gh[GitHub — push to main]
+    gha[GitHub Actions<br/>OIDC auth · build · push]
+    ecr[Amazon ECR<br/>:latest image]
+  end
+
+  subgraph aws [AWS — us-east-1]
+    ar[App Runner<br/>API + SPA · HTTPS]
+    sm[Secrets Manager<br/>DATABASE_URL · OPENAI_API_KEY]
+    subgraph vpc [Default VPC]
+      conn[VPC connector<br/>private subnets]
+      nat[NAT instance t4g.nano]
+      rds[(RDS Postgres)]
+    end
+  end
+
+  subgraph internet [Internet]
+    user[Browser / team]
+    binance[Binance]
+    hl[Hyperliquid]
+    openai[OpenAI API]
+  end
+
+  gh --> gha --> ecr -->|auto-deploy| ar
+  user -->|HTTPS| ar
+  ar -->|runtime secrets| sm
+  ar --> conn
+  conn --> nat --> binance
+  conn --> nat --> hl
+  conn --> nat --> openai
+  ar -->|5432 via connector| rds
+  ar --> entrypoint[entrypoint.sh<br/>alembic upgrade head if DATABASE_URL]
+```
+
+**Networking note:** App Runner's VPC connector routes **all** egress through the VPC, so a
+NAT instance is required for outbound market-data and LLM calls while still reaching private RDS.
+
+See [§11 Deployment](#11-deployment) for hosting targets (HF Spaces vs AWS), Terraform paths,
+and deploy gotchas encountered in production.
+
+### Backtest request flow
+
+```mermaid
+sequenceDiagram
+  actor User
+  participant UI as React frontend
+  participant API as FastAPI
+  participant Eng as Engine
+  participant Data as Data layer
+  participant LLM as OpenAI LLM
+
+  User->>UI: Configure graph + primary dates (+ optional comparison)
+  UI->>API: POST /api/backtest (primary window)
+  API->>Eng: run_backtest()
+  Eng->>Data: fetch candles / funding (cache or read-through DB)
+  Data-->>Eng: aligned MarketData timeline
+  Eng-->>API: BacktestResult
+  API-->>UI: metrics · equity_curve · trades · events
+
+  opt Comparison enabled
+    UI->>API: POST /api/backtest (comparison window)
+    API->>Eng: run_backtest()
+    Eng-->>API: BacktestResult
+    API-->>UI: comparison result (or UI shows warning if no data)
+  end
+
+  UI->>UI: Render metrics, deltas, overlaid equity chart
+  UI->>API: POST /api/summary (metrics + comparison deltas)
+  alt OPENAI_API_KEY configured
+    API->>LLM: chat completion
+    LLM-->>API: narrative + recommendations
+  else No key or LLM failure
+    API->>API: rule-based summary
+  end
+  API-->>UI: SummaryResponse
+  UI-->>User: AI summary card
 ```
 
 ### Module responsibilities
@@ -359,24 +474,16 @@ The same image runs two ways:
 
 ### AWS topology ([deploy/terraform](../deploy/terraform))
 
+See **[§5 AWS deployment architecture](#aws-deployment-architecture-production)** for the full diagram.
+A condensed view:
+
 ```mermaid
 flowchart LR
-  user[Browser]
-  gha[GitHub Actions]
-  ecr[ECR]
-  user -->|HTTPS| ar
-  gha -->|OIDC: build + push :latest| ecr
-  ecr -->|auto-deploy| ar
-  subgraph vpc [Default VPC]
-    ar["App Runner (API + SPA)"]
-    sm["Secrets Manager: DATABASE_URL + (optional) OPENAI_API_KEY"]
-    nat["NAT instance (t4g.nano)"]
-    rds[(RDS Postgres)]
-    ar -->|runtime secrets| sm
-    ar -->|VPC connector, private subnets| nat
-    ar -->|":5432"| rds
-    nat -->|IGW| ext[Binance · Hyperliquid · OpenAI]
-  end
+  user[Browser] -->|HTTPS| ar[App Runner]
+  gha[GitHub Actions] -->|OIDC push :latest| ecr[ECR] -->|auto-deploy| ar
+  ar --> sm[Secrets Manager]
+  ar -->|VPC connector| nat[NAT t4g.nano] --> ext[Binance · HL · OpenAI]
+  ar -->|5432| rds[(RDS Postgres)]
 ```
 
 Key points:
