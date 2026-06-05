@@ -119,6 +119,44 @@ export function resolveTz(tz: string): string {
   return tz || "UTC";
 }
 
+/** Offset in ms (zone wall-clock − actual UTC) for `instant` in `timeZone`. */
+function tzOffsetMs(instant: Date, timeZone: string): number {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    hour12: false,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  }).formatToParts(instant);
+  const m: Record<string, string> = {};
+  for (const p of parts) m[p.type] = p.value;
+  const hour = m.hour === "24" ? "00" : m.hour;
+  const asUtc = Date.UTC(+m.year, +m.month - 1, +m.day, +hour, +m.minute, +m.second);
+  return asUtc - instant.getTime();
+}
+
+/**
+ * UTC ISO instant for local midnight of a YYYY-MM-DD date in the given zone.
+ * Used so the analysis-period dates mean midnight in the chosen display zone
+ * (the backend parses tz-aware ISO and converts to UTC). For UTC this is just
+ * "<date>T00:00:00.000Z", matching prior behavior.
+ */
+export function zonedDateToUtcIso(dateStr: string, tz: string): string {
+  const [y, mo, d] = dateStr.split("-").map(Number);
+  if (!y || !mo || !d) return dateStr;
+  const zone = resolveTz(tz);
+  const guess = Date.UTC(y, mo - 1, d, 0, 0, 0);
+  const offset = tzOffsetMs(new Date(guess), zone);
+  let real = guess - offset;
+  // Refine once to handle DST boundaries where the offset shifts.
+  const offset2 = tzOffsetMs(new Date(real), zone);
+  if (offset2 !== offset) real = guess - offset2;
+  return new Date(real).toISOString();
+}
+
 /** Parse a (UTC) backend timestamp that may lack a zone suffix. */
 export function parseUtc(iso: string): Date {
   let s = iso.trim().replace(" ", "T");

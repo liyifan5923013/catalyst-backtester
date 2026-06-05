@@ -5,6 +5,7 @@ import {
   COMPARE_LABELS,
   effectiveCompareRange,
   TIME_ZONES,
+  tzAbbrev,
   type CompareMode,
   type CompareState,
 } from "../utils";
@@ -50,6 +51,7 @@ export function BacktestForm({
 }: Props) {
   const cmpRange = effectiveCompareRange(config, compare);
   const [copied, setCopied] = useState(false);
+  const tzAbbr = tzAbbrev(timeZone);
 
   async function handleShareClick() {
     const url = onShare();
@@ -90,8 +92,8 @@ export function BacktestForm({
       <div className="field-group">
         <div className="field-group-head">
           <span>Analysis period</span>
-          <span className="tz-badge" title="Start and End are UTC calendar dates. Result times are shown in the display time zone selected below.">
-            UTC
+          <span className="tz-badge" title={`Start and End are interpreted as midnight in the selected display time zone (${tzAbbr}). Change it below.`}>
+            {tzAbbr}
           </span>
         </div>
         <div className="field-row">
@@ -140,7 +142,7 @@ export function BacktestForm({
       </div>
 
       <label className="field">
-        <span>Display time zone</span>
+        <span>Time zone</span>
         <select value={timeZone} onChange={(e) => onTimeZoneChange(e.target.value)}>
           {TIME_ZONES.map((tz) => (
             <option key={tz.id} value={tz.id}>
@@ -199,7 +201,7 @@ export function BacktestForm({
               </label>
             </div>
             <p className="compare-hint">
-              Comparing against the <strong>{COMPARE_LABELS[compare.mode]}</strong> ({cmpRange.start} → {cmpRange.end}, UTC).
+              Comparing against the <strong>{COMPARE_LABELS[compare.mode]}</strong> ({cmpRange.start} → {cmpRange.end}, {tzAbbr}).
             </p>
           </div>
         )}

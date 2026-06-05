@@ -12,6 +12,7 @@ import {
   effectiveCompareRange,
   encodeShareState,
   tzAbbrev,
+  zonedDateToUtcIso,
   type CompareState,
 } from "./utils";
 
@@ -104,7 +105,12 @@ export default function App() {
     setCompareWarning(null);
     try {
       const graph = parsedGraph.value;
-      const primary = await runBacktest({ graph, ...config });
+      const primary = await runBacktest({
+        graph,
+        ...config,
+        start: zonedDateToUtcIso(config.start, timeZone),
+        end: zonedDateToUtcIso(config.end, timeZone),
+      });
 
       let cmp: BacktestResult | null = null;
       let cmpLabel: string | null = null;
@@ -118,8 +124,8 @@ export default function App() {
           try {
             cmp = await runBacktest({
               graph,
-              start: range.start,
-              end: range.end,
+              start: zonedDateToUtcIso(range.start, timeZone),
+              end: zonedDateToUtcIso(range.end, timeZone),
               interval: config.interval,
               initial_capital: config.initial_capital,
             });
