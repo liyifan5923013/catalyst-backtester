@@ -9,10 +9,24 @@ deploy is GitHub Actions ([../.github/workflows/deploy.yml](../.github/workflows
 flowchart LR
   gha["GitHub Actions"] -->|"build + push"| ecr["ECR"]
   ecr -->|"auto-deploy latest"| ar["App Runner service"]
-  ar -->|"VPC connector :5432"| rds["RDS Postgres"]
   ar -->|"DATABASE_URL secret"| sm["Secrets Manager"]
   user["Browser"] -->|"HTTPS"| ar
+  subgraph vpc [Default VPC]
+    ar -->|"VPC connector (private subnets)"| nat["NAT instance (t4g.nano)"]
+    ar -->|":5432"| rds["RDS Postgres"]
+    nat -->|"IGW"| internet["Binance / Hyperliquid"]
+  end
 ```
+
+### Networking / egress
+App Runner uses a **VPC connector** so it can reach the private RDS instance. A
+VPC connector routes *all* outbound traffic through the VPC, so to also reach the
+internet (Binance/Hyperliquid) the connector's **private subnets** route
+`0.0.0.0/0` through a small **NAT instance** (`t4g.nano`, ~$3-4/mo - far cheaper
+than a managed NAT Gateway). The NAT bootstrap lives in
+[nat-user-data.sh](terraform/nat-user-data.sh). App Runner is not available in
+every AZ (e.g. `use1-az3` in us-east-1), so unsupported AZs are excluded from the
+connector subnets via `var.apprunner_unsupported_az_ids`.
 
 The app reads `DATABASE_URL` (injected from Secrets Manager) and runs
 `alembic upgrade head` on start via [backend/entrypoint.sh](../backend/entrypoint.sh).

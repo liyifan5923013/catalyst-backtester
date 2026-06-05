@@ -11,10 +11,38 @@ data "aws_subnets" "default" {
     name   = "vpc-id"
     values = [data.aws_vpc.default.id]
   }
+
+  # Only the VPC's original default subnets (public, with an IGW route). This
+  # excludes the private subnets we create below, which also live in this VPC.
+  filter {
+    name   = "default-for-az"
+    values = ["true"]
+  }
+}
+
+# Per-subnet detail so we can exclude AZs that App Runner does not support.
+data "aws_subnet" "default" {
+  for_each = toset(data.aws_subnets.default.ids)
+  id       = each.value
 }
 
 locals {
   name = var.project
+
+  # App Runner VPC connectors are not available in every AZ (e.g. use1-az3 in
+  # us-east-1). Keep only default (public) subnets in supported AZs.
+  supported_subnets = [
+    for s in data.aws_subnet.default : s
+    if !contains(var.apprunner_unsupported_az_ids, s.availability_zone_id)
+  ]
+
+  # Public subnet (default VPC, has an Internet Gateway route) to host the NAT
+  # instance, and the supported AZs we will place private subnets in.
+  nat_public_subnet_id = local.supported_subnets[0].id
+  private_azs          = slice(distinct([for s in local.supported_subnets : s.availability_zone]), 0, 2)
+
+  # The App Runner connector lives in the private subnets (internet via NAT).
+  connector_subnets = aws_subnet.private[*].id
 }
 
 # ---------------------------------------------------------------------------
@@ -169,12 +197,121 @@ resource "aws_iam_role_policy" "apprunner_secrets" {
 }
 
 # ---------------------------------------------------------------------------
-# App Runner: VPC connector (to reach private RDS) + the service
+# Egress: a small NAT instance so the App Runner connector (in private subnets)
+# can reach the internet (Binance/Hyperliquid) while still reaching RDS in-VPC.
+# A t4g.nano NAT instance is ~10x cheaper than a managed NAT Gateway.
 # ---------------------------------------------------------------------------
+data "aws_ami" "nat" {
+  most_recent = true
+  owners      = ["amazon"]
+
+  filter {
+    name   = "name"
+    values = ["al2023-ami-2023.*-arm64"]
+  }
+
+  filter {
+    name   = "architecture"
+    values = ["arm64"]
+  }
+}
+
+resource "aws_subnet" "private" {
+  count             = length(local.private_azs)
+  vpc_id            = data.aws_vpc.default.id
+  availability_zone = local.private_azs[count.index]
+  cidr_block        = cidrsubnet("172.31.192.0/18", 6, count.index)
+
+  tags = {
+    Name = "${local.name}-private-${count.index}"
+  }
+}
+
+resource "aws_security_group" "nat" {
+  name        = "${local.name}-nat"
+  description = "NAT instance: forward traffic from private subnets to the internet"
+  vpc_id      = data.aws_vpc.default.id
+
+  ingress {
+    description = "All traffic from within the VPC"
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = [data.aws_vpc.default.cidr_block]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+}
+
+resource "aws_instance" "nat" {
+  ami                         = data.aws_ami.nat.id
+  instance_type               = "t4g.nano"
+  subnet_id                   = local.nat_public_subnet_id
+  associate_public_ip_address = true
+  vpc_security_group_ids      = [aws_security_group.nat.id]
+  source_dest_check           = false
+
+  user_data                   = file("${path.module}/nat-user-data.sh")
+  user_data_replace_on_change = true
+
+  tags = {
+    Name = "${local.name}-nat"
+  }
+}
+
+resource "aws_route_table" "private" {
+  vpc_id = data.aws_vpc.default.id
+
+  route {
+    cidr_block           = "0.0.0.0/0"
+    network_interface_id = aws_instance.nat.primary_network_interface_id
+  }
+
+  tags = {
+    Name = "${local.name}-private"
+  }
+}
+
+resource "aws_route_table_association" "private" {
+  count          = length(aws_subnet.private)
+  subnet_id      = aws_subnet.private[count.index].id
+  route_table_id = aws_route_table.private.id
+}
+
+# ---------------------------------------------------------------------------
+# App Runner: VPC connector (private subnets) + the service
+# ---------------------------------------------------------------------------
+# App Runner rejects a new connector whose security-group set exactly matches an
+# existing connector's. This secondary SG keeps the set distinct so connector
+# swaps (create_before_destroy) succeed.
+resource "aws_security_group" "connector_extra" {
+  name        = "${local.name}-connector-extra"
+  description = "Secondary SG to keep the App Runner connector SG-set unique"
+  vpc_id      = data.aws_vpc.default.id
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+}
+
 resource "aws_apprunner_vpc_connector" "main" {
-  vpc_connector_name = "${local.name}-vpc"
-  subnets            = data.aws_subnets.default.ids
-  security_groups    = [aws_security_group.apprunner.id]
+  # Name embeds a hash of the subnets so changing them creates a new connector
+  # (App Runner connectors are immutable) before the old one is removed.
+  vpc_connector_name = "${local.name}-vpc-${substr(sha1(join(",", local.connector_subnets)), 0, 6)}"
+  subnets            = local.connector_subnets
+  security_groups    = [aws_security_group.apprunner.id, aws_security_group.connector_extra.id]
+
+  lifecycle {
+    create_before_destroy = true
+  }
 }
 
 resource "aws_apprunner_service" "app" {

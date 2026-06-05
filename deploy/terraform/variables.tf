@@ -35,6 +35,12 @@ variable "apprunner_memory" {
   default     = "2048"
 }
 
+variable "apprunner_unsupported_az_ids" {
+  description = "AZ IDs where App Runner VPC connectors are unavailable (excluded from the connector subnets)."
+  type        = list(string)
+  default     = ["use1-az3"]
+}
+
 # -- Database ---------------------------------------------------------------
 variable "db_username" {
   description = "Postgres master username."
