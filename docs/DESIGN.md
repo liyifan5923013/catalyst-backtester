@@ -12,7 +12,9 @@ The Catalyst pipeline emits trading strategies as **graphs** (nodes = actions/si
 edges = control flow). This service accepts such a graph plus a time window and
 **replays it tick-by-tick against real historical market data**, then returns how the
 strategy would have performed: an equity curve, per-trade log, lifecycle events, and
-summary metrics (return, drawdown, Sharpe, fees).
+summary metrics (return, drawdown, Sharpe, fees). Runs can be compared against a second
+period (previous period / year-over-year / custom), and an LLM produces a plain-English
+summary + recommendations (with a deterministic fallback).
 
 It is delivered as a web app: a Python/FastAPI backend (the engine) and a React/TypeScript
 frontend (input + reporting), deployed as a single Docker image.
@@ -110,6 +112,8 @@ flowchart LR
   end
   subgraph be [FastAPI]
     api["POST /api/backtest"]
+    sumapi["POST /api/summary"]
+    sum[summary.py: LLM + rule-based fallback]
     subgraph engine [Engine]
       parser[graph.py: parse + validate + trigger map]
       sim[simulator.py: tick loop]
@@ -128,6 +132,7 @@ flowchart LR
   binance[Binance klines mirror]
   hl[Hyperliquid info API]
   ts[(TimescaleDB)]
+  llm[OpenAI-compatible LLM]
 
   user --> form --> api --> parser --> sim
   sim --> sig --> exe --> pf --> met --> api --> dash --> user
@@ -138,13 +143,17 @@ flowchart LR
   repo -->|fetch gaps| hl
   prov --> binance
   prov --> hl
+  dash -->|metrics + comparison| sumapi --> sum
+  sum -->|"OPENAI_API_KEY set"| llm
+  sum -->|"unset / on error"| sumapi
 ```
 
 ### Module responsibilities
 
 | Module | Responsibility |
 | --- | --- |
-| [models.py](../backend/app/models.py) | Pydantic schemas: `Graph/Node/Edge`, `BacktestRequest`, `CostModel`, `BacktestResult` (`Metrics`, `EquityPoint`, `Trade`, `Event`). |
+| [models.py](../backend/app/models.py) | Pydantic schemas: `Graph/Node/Edge`, `BacktestRequest`, `CostModel`, `BacktestResult` (`Metrics`, `EquityPoint`, `Trade`, `Event`), `SummaryRequest`/`SummaryResponse`. |
+| [summary.py](../backend/app/summary.py) | AI summary: LLM (OpenAI-compatible Chat Completions via httpx) with a deterministic rule-based fallback when no key is set or the call fails. |
 | [data/providers.py](../backend/app/data/providers.py) | `BinanceProvider`, `HyperliquidProvider`, and `MarketData` (unified, tick-aligned prices + funding). |
 | [data/cache.py](../backend/app/data/cache.py) | Parquet cache keyed by provider/symbol/interval/range (fallback when no DB). |
 | [data/db.py](../backend/app/data/db.py) | SQLAlchemy engine + `is_enabled()` from `DATABASE_URL` (persistence is opt-in). |
@@ -309,15 +318,23 @@ Computed in [metrics.py](../backend/app/engine/metrics.py) from the equity curve
 
 ### API ([api/routes.py](../backend/app/api/routes.py))
 - `POST /api/backtest` → run a backtest (synchronous; runs complete in seconds).
+- `POST /api/summary` → LLM narrative + recommendations from metrics (and optional
+  comparison deltas); always returns 200 with a rule-based fallback if the LLM is
+  unavailable.
 - `GET /api/examples` → the 15 bundled example strategies.
 - `GET /api/health`.
 - Errors map to HTTP codes: bad graph/params → 400, upstream data issue → 502, else 500.
 
 ### Frontend ([frontend/src](../frontend/src))
 - Graph JSON editor with live validation, example loader, and a config form
-  (date range, granularity, initial capital).
-- Results dashboard: metric cards, an equity curve + ETH reference price chart (Recharts),
-  an events list, and a trade log.
+  (date range, granularity, initial capital). All dates/times are UTC.
+- **Period-over-period comparison:** a second window (previous period / year-over-year /
+  custom) is backtested alongside the primary; the frontend orchestrates both runs and
+  degrades gracefully (keeps the primary result + warns) if the comparison range has no data.
+- Results dashboard: an AI summary card, metric cards with good/bad-aware deltas vs the
+  comparison period and per-metric tooltips, a fullscreen-able equity chart that overlays
+  both periods (labeled axes), an events list, and a trade log. The inputs panel collapses
+  to give results the full width.
 - Calls the API at the relative path `/api`, so it works same-origin in prod and via the
   Vite dev proxy locally.
 
@@ -352,13 +369,13 @@ flowchart LR
   ecr -->|auto-deploy| ar
   subgraph vpc [Default VPC]
     ar["App Runner (API + SPA)"]
-    sm[Secrets Manager: DATABASE_URL]
+    sm["Secrets Manager: DATABASE_URL + (optional) OPENAI_API_KEY"]
     nat["NAT instance (t4g.nano)"]
     rds[(RDS Postgres)]
-    ar -->|runtime secret| sm
+    ar -->|runtime secrets| sm
     ar -->|VPC connector, private subnets| nat
     ar -->|":5432"| rds
-    nat -->|IGW| ext[Binance / Hyperliquid]
+    nat -->|IGW| ext[Binance · Hyperliquid · OpenAI]
   end
 ```
 
@@ -368,6 +385,9 @@ Key points:
   market-data fetches (≈10x cheaper than a managed NAT Gateway).
 - `DATABASE_URL` is injected from **Secrets Manager**; [entrypoint.sh](../backend/entrypoint.sh)
   runs `alembic upgrade head` on start.
+- `OPENAI_API_KEY` is an **optional** Secrets Manager secret (created by Terraform only when
+  `TF_VAR_openai_api_key` is supplied) for AI summaries; `OPENAI_MODEL`/`OPENAI_BASE_URL` are
+  plain runtime env. With no key, the app uses the rule-based summary fallback.
 - RDS is **plain Postgres** (no Timescale extension on RDS); the schema degrades to regular
   tables. Point `DATABASE_URL` at Timescale Cloud to get hypertables, no code change.
 - **CI/CD** ([.github/workflows/deploy.yml](../.github/workflows/deploy.yml)): push to `main`
@@ -397,6 +417,8 @@ Postgres + the app wired via `DATABASE_URL`.
 - `test_data.py` — yield-only timeline synthesis (no network).
 - `test_persistence.py` — pure gap/coverage/staleness arithmetic (always), plus a
   read-through round-trip integration test gated on `DATABASE_URL` (skipped offline).
+- `test_summary.py` — rule-based summary fallback: number formatting, comparison-trend
+  wording (increased/decreased), and high-drawdown recommendation flags (no network).
 - `synthetic.py` — a sine-wave ETH price path that crosses every example threshold.
 
 ---

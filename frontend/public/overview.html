@@ -119,8 +119,9 @@
     <h1>Catalyst Backtesting Engine</h1>
     <p class="tagline">
       Replays Catalyst strategy <b>graphs</b> (swaps, perps, yields, signals) tick-by-tick against
-      real historical market data and reports performance — built as a FastAPI + React app with an
-      optional time-series persistence layer, deployed to AWS via Terraform and CI/CD.
+      real historical market data and reports performance — with <b>period-over-period comparison</b>
+      and an <b>LLM-generated summary</b>. Built as a FastAPI + React app with an optional time-series
+      persistence layer, deployed to AWS via Terraform and CI/CD.
     </p>
     <div class="btns">
       <a class="btn primary" href="https://qkz2sj2ca6.us-east-1.awsapprunner.com" target="_blank" rel="noopener">▶ Live demo</a>
@@ -134,7 +135,7 @@
     <div class="stats">
       <div class="stat"><div class="n">4</div><div class="l">action types: swap · perp · yield · signal</div></div>
       <div class="stat"><div class="n">15</div><div class="l">example strategy graphs</div></div>
-      <div class="stat"><div class="n">49</div><div class="l">automated tests passing</div></div>
+      <div class="stat"><div class="n">51</div><div class="l">automated tests passing</div></div>
       <div class="stat"><div class="n">1</div><div class="l">image → HF demo &amp; AWS prod</div></div>
     </div>
   </div>
@@ -151,6 +152,9 @@
       <div class="card"><h3>Accurate PnL</h3><p>Spot cost-basis tracking for realized PnL, perp mark-to-market, liquidations recorded as synthetic trades so the log and metrics reconcile.</p></div>
       <div class="card"><h3>Metrics</h3><p>Total return, max drawdown, Sharpe (clamped), win rate, fees — plus an equity curve, trade log, and lifecycle events.</p></div>
       <div class="card"><h3>Robustness</h3><p>Atomic execution (validate before mutating), insufficient-funds → skip + warning, per-action try/except so one bad node never aborts the run.</p></div>
+      <div class="card"><h3>Period comparison</h3><p>Run a second window alongside the primary — <b>previous period</b>, <b>year-over-year</b>, or custom. Equity curves overlay (aligned by elapsed time) and every metric shows a good/bad-aware delta vs the comparison.</p></div>
+      <div class="card"><h3>AI summary &amp; recommendations</h3><p>An LLM (OpenAI-compatible) turns the metrics + comparison deltas into a plain-English summary and 2–4 actionable recommendations. <b>Falls back to a deterministic rule-based narrative</b> when no key is set or the call fails — the UI never breaks.</p></div>
+      <div class="card"><h3>Readable by design</h3><p>UTC labeling throughout, labeled chart axes, per-metric tooltips, a fullscreen chart, and a collapsible inputs panel so results take center stage.</p></div>
     </div>
   </div>
 </section>
@@ -183,6 +187,15 @@
         <span class="arrow">→</span>
         <span class="node warn">Postgres / Timescale</span>
       </div>
+      <div class="flow">
+        <span class="node" style="visibility:hidden">Browser</span>
+        <span class="arrow" style="visibility:hidden">→</span>
+        <span class="node" style="visibility:hidden">React SPA</span>
+        <span class="arrow" style="visibility:hidden">→</span>
+        <span class="node accent">FastAPI</span>
+        <span class="arrow">→<span class="lbl">/api/summary</span></span>
+        <span class="node blue">LLM summary <span class="meta">OpenAI-compatible · rule-based fallback</span></span>
+      </div>
     </div>
 
     <h3 style="margin:26px 0 10px; font-size:18px;">Deployed on AWS (Terraform + CI/CD)</h3>
@@ -206,11 +219,11 @@
           <span class="arrow">→<span class="lbl">VPC connector</span></span>
           <span class="node">NAT instance <span class="meta">t4g.nano</span></span>
           <span class="arrow">→<span class="lbl">IGW</span></span>
-          <span class="node">Binance / Hyperliquid</span>
+          <span class="node">Binance · Hyperliquid · OpenAI</span>
         </div>
       </div>
       <p style="margin:14px 0 0; color:var(--muted); font-size:13px;">
-        <code>DATABASE_URL</code> injected from Secrets Manager · migrations run on container start.
+        <code>DATABASE_URL</code> and (optional) <code>OPENAI_API_KEY</code> injected from Secrets Manager · migrations run on container start.
       </p>
     </div>
   </div>
@@ -240,6 +253,7 @@
       <div class="challenge"><h3>New AWS account blocked</h3><p>Free Plan blocks App Runner &amp; restricts RDS. <span class="fix">→ upgrade to paid plan (surfaced clearly, not silently worked around).</span></p></div>
       <div class="challenge"><h3>App Runner egress trap</h3><p>A VPC connector routes <b>all</b> egress through the VPC → no internet for data fetches. <span class="fix">→ private subnets through a cheap NAT instance.</span></p></div>
       <div class="challenge"><h3>Terraform data-source loop</h3><p><code>aws_subnets</code> began including the subnets it was creating, placing the NAT in a private subnet. <span class="fix">→ restrict with the default-for-az filter.</span></p></div>
+      <div class="challenge"><h3>Comparison without data</h3><p>Year-over-year on a young market (e.g. Hyperliquid spot) has no history that far back, 502-ing the comparison run. <span class="fix">→ degrade gracefully: keep the primary result + summary, warn on the comparison.</span></p></div>
     </div>
   </div>
 </section>
@@ -255,7 +269,7 @@
       <span class="chip">Vite</span><span class="chip">Recharts</span><span class="chip">Docker</span>
       <span class="chip">Terraform / OpenTofu</span><span class="chip">AWS App Runner</span><span class="chip">RDS</span>
       <span class="chip">ECR</span><span class="chip">Secrets Manager</span><span class="chip">GitHub Actions (OIDC)</span>
-      <span class="chip">pytest</span>
+      <span class="chip">OpenAI-compatible LLM</span><span class="chip">httpx</span><span class="chip">pytest</span>
     </div>
   </div>
 </section>
@@ -265,12 +279,13 @@
     <h2><span class="num">06</span>Testing &amp; what's next</h2>
     <div class="grid c2">
       <div class="card">
-        <h3>Testing — 49 tests, no network</h3>
+        <h3>Testing — 51 tests, no network</h3>
         <ul class="tight">
           <li><b>Graph:</b> parsing, trigger structure, validation errors</li>
           <li><b>Execution:</b> swap/perp/yield math, insufficient-funds paths</li>
           <li><b>Examples:</b> all 15 graphs on deterministic synthetic data</li>
           <li><b>Persistence:</b> gap/coverage/staleness logic + DB-gated round-trip</li>
+          <li><b>AI summary:</b> rule-based fallback narrative + comparison-trend wording</li>
         </ul>
       </div>
       <div class="card">
