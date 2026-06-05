@@ -543,6 +543,11 @@ Postgres + the app wired via `DATABASE_URL`.
 - `test_signals.py` — rising-edge operator evaluation, and graceful degradation of malformed
   signals (bad operator / missing or non-numeric threshold): the simulator warns once per
   signal and skips it instead of raising, so a hand-typed bad signal never crashes a run.
+- `test_accuracy.py` — hand-computed oracles for venue-specific fees/slippage/gas, cost-basis
+  and realized PnL on partial sells, perp short PnL, weighted-average entry, funding payments
+  (long pays / short receives), liquidation threshold, and yield accrual.
+- `test_metrics.py` — exact total return, max drawdown, win rate, total fees, and Sharpe
+  (including a hand-derived value and the flat-equity clamp).
 - `test_examples.py` — runs **all 16 example graphs** against deterministic synthetic data
   (offline), asserting equity is finite/non-negative and metrics are self-consistent.
 - `graph_gen.py` + `test_fuzz.py` — a seeded random graph generator (also runnable as
