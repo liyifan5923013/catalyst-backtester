@@ -383,6 +383,10 @@ both of which reuse the *same* gap-fill path (and so are idempotent):
   `PREWARM_INTERVAL_HOURS` (default 24h), floored at 60s. It is gated behind `PREWARM_ENABLED=1`
   and a configured `DATABASE_URL`, and the watchlist is overridable via `PREWARM_WATCHLIST` (JSON).
   Because gap-fill is idempotent, running it across multiple instances is safe.
+  A **per-source minimum interval** (`PREWARM_SOURCE_MIN_INTERVAL`, default Yahoo = 6h) decouples
+  how often each provider is touched from the loop cadence, so minute-level pre-warm cannot exhaust
+  a rate-limited provider such as the Alpha Vantage equity fallback (~25 req/day). The throttle is
+  applied per attempt (including failures) so a persistently failing source is still bounded.
 
 #### Operational cost (why it is opt-in)
 The cost is exactly what an MVP avoids: a running DB service, schema/migrations

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import threading
+from datetime import datetime, timedelta, timezone
 
 import pandas as pd
 import pytest
@@ -9,6 +10,14 @@ from fastapi.testclient import TestClient
 
 from app import main as app_main
 from app.data import prewarm
+
+
+@pytest.fixture(autouse=True)
+def _reset_prewarm_state():
+    """Isolate the in-process per-entry throttle between tests."""
+    prewarm._LAST_RUN.clear()
+    yield
+    prewarm._LAST_RUN.clear()
 
 
 def test_default_watchlist_used_when_env_unset(monkeypatch):
@@ -227,6 +236,79 @@ def test_run_prewarm_skips_unknown_interval(monkeypatch):
     # The unknown-interval entry is skipped before any fetch.
     assert prewarm.run_prewarm() == 1
     assert seen == ["BTC"]
+
+
+def test_source_min_intervals_default_throttles_yahoo():
+    intervals = prewarm._source_min_intervals()
+    assert intervals["yahoo"] == 6 * 3600.0
+
+
+def test_source_min_intervals_env_override(monkeypatch):
+    monkeypatch.setenv("PREWARM_SOURCE_MIN_INTERVAL", '{"yahoo": 3600, "binance": 120}')
+    intervals = prewarm._source_min_intervals()
+    assert intervals["yahoo"] == 3600.0
+    assert intervals["binance"] == 120.0
+
+
+def test_source_min_intervals_bad_env_falls_back(monkeypatch):
+    monkeypatch.setenv("PREWARM_SOURCE_MIN_INTERVAL", "not json")
+    assert prewarm._source_min_intervals() == prewarm.DEFAULT_SOURCE_MIN_INTERVAL_SECONDS
+
+
+def test_is_due_respects_per_source_interval():
+    now = datetime(2026, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
+    intervals = {"yahoo": 6 * 3600.0}
+    entry = prewarm.WatchEntry(source="yahoo", symbol="AAPL", interval="1h")
+
+    # Never warmed -> due.
+    assert prewarm._is_due(entry, now, intervals) is True
+
+    prewarm._LAST_RUN[entry] = now
+    # 1h later: still throttled.
+    assert prewarm._is_due(entry, now + timedelta(hours=1), intervals) is False
+    # 6h+ later: due again.
+    assert prewarm._is_due(entry, now + timedelta(hours=6, seconds=1), intervals) is True
+
+
+def test_is_due_zero_interval_source_always_due():
+    now = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    entry = prewarm.WatchEntry(source="binance", symbol="ETH")
+    prewarm._LAST_RUN[entry] = now
+    # binance has no min interval -> always due even immediately after.
+    assert prewarm._is_due(entry, now + timedelta(seconds=1), {}) is True
+
+
+def test_run_prewarm_throttles_rate_limited_source(monkeypatch):
+    monkeypatch.setattr(prewarm.db, "is_enabled", lambda: True)
+    monkeypatch.setenv(
+        "PREWARM_WATCHLIST",
+        '[{"source":"binance","symbol":"ETH"}, {"source":"yahoo","symbol":"AAPL"}]',
+    )
+    calls = []
+    monkeypatch.setattr(prewarm, "_fetch_entry", lambda e, s, x: calls.append(e.source) or 1)
+
+    # First cycle warms both.
+    assert prewarm.run_prewarm() == 2
+    # Immediate second cycle: yahoo is throttled (6h), binance still warms.
+    assert prewarm.run_prewarm() == 1
+    assert calls == ["binance", "yahoo", "binance"]
+
+
+def test_run_prewarm_throttles_even_on_failure(monkeypatch):
+    monkeypatch.setattr(prewarm.db, "is_enabled", lambda: True)
+    monkeypatch.setenv("PREWARM_WATCHLIST", '[{"source":"yahoo","symbol":"AAPL"}]')
+    attempts = []
+
+    def _boom(entry, start_ms, end_ms):
+        attempts.append(entry.source)
+        raise RuntimeError("rate limited")
+
+    monkeypatch.setattr(prewarm, "_fetch_entry", _boom)
+
+    prewarm.run_prewarm()
+    prewarm.run_prewarm()
+    # A failing yahoo fetch is still throttled, so only one API attempt happened.
+    assert attempts == ["yahoo"]
 
 
 def test_run_prewarm_window_reflects_trailing_days(monkeypatch):

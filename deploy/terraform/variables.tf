@@ -124,3 +124,9 @@ variable "prewarm_interval_minutes" {
   type        = number
   default     = 0
 }
+
+variable "prewarm_source_min_interval" {
+  description = "Per-source minimum seconds between warming the same symbol, merged over the app defaults (Yahoo = 6h to protect the Alpha Vantage fallback's ~25 req/day free tier). Example: { yahoo = 21600, binance = 0 }."
+  type        = map(number)
+  default     = {}
+}

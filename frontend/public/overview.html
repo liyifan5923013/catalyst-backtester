@@ -136,7 +136,7 @@
     <div class="stats">
       <div class="stat"><div class="n">4</div><div class="l">action types: swap · perp · yield · signal</div></div>
       <div class="stat"><div class="n">15</div><div class="l">example strategy graphs</div></div>
-      <div class="stat"><div class="n">78</div><div class="l">automated tests passing</div></div>
+      <div class="stat"><div class="n">85</div><div class="l">automated tests passing</div></div>
       <div class="stat"><div class="n">1</div><div class="l">image → HF demo &amp; AWS prod</div></div>
     </div>
   </div>
@@ -280,13 +280,13 @@
     <h2><span class="num">06</span>Testing &amp; what's next</h2>
     <div class="grid c2">
       <div class="card">
-        <h3>Testing — 78 tests, no network</h3>
+        <h3>Testing — 85 tests, no network</h3>
         <ul class="tight">
           <li><b>Graph:</b> parsing, trigger structure, validation errors</li>
           <li><b>Execution:</b> swap/perp/yield math, insufficient-funds paths</li>
           <li><b>Examples:</b> all 15 graphs on deterministic synthetic data</li>
           <li><b>Persistence:</b> gap/coverage/staleness logic + DB-gated round-trip</li>
-          <li><b>Pre-warm:</b> watchlist parsing, fault isolation, lifespan startup wiring</li>
+          <li><b>Pre-warm:</b> watchlist, lifespan wiring, interval cadence, per-source throttle</li>
           <li><b>AI summary:</b> rule-based fallback narrative + comparison-trend wording</li>
         </ul>
       </div>

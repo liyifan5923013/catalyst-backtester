@@ -18,3 +18,6 @@ db_name     = "catalyst"
 # prewarm_interval_hours = 24
 # Minute-level cadence (takes precedence over hours when > 0; floored at 60s):
 # prewarm_interval_minutes = 5
+# Per-source throttle so minute-level cadence doesn't exhaust rate-limited APIs
+# (Yahoo defaults to 6h to protect the Alpha Vantage fallback). Override here:
+# prewarm_source_min_interval = { yahoo = 21600 }
