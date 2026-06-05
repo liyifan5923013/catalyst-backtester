@@ -114,7 +114,13 @@ variable "prewarm_enabled" {
 }
 
 variable "prewarm_interval_hours" {
-  description = "How often the pre-warm loop refreshes the watchlist, in hours."
+  description = "How often the pre-warm loop refreshes the watchlist, in hours. Ignored when prewarm_interval_minutes > 0."
   type        = number
   default     = 24
+}
+
+variable "prewarm_interval_minutes" {
+  description = "Minute-level pre-warm cadence. When > 0 this takes precedence over prewarm_interval_hours. The app floors the effective interval at 60 seconds."
+  type        = number
+  default     = 0
 }

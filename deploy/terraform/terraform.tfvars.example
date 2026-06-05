@@ -16,3 +16,5 @@ db_name     = "catalyst"
 # Optional scheduled data pre-warm (read-through still fetches on demand):
 # prewarm_enabled        = true
 # prewarm_interval_hours = 24
+# Minute-level cadence (takes precedence over hours when > 0; floored at 60s):
+# prewarm_interval_minutes = 5

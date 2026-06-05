@@ -22,30 +22,61 @@ from .data import db
 log = logging.getLogger(__name__)
 
 
+# Never poll faster than this; protects the providers from runaway loops.
+PREWARM_MIN_INTERVAL_SECONDS = 60.0
+
+
 def _prewarm_enabled() -> bool:
     """Opt-in via PREWARM_ENABLED, and only when a persistence backend exists."""
     flag = os.environ.get("PREWARM_ENABLED", "").strip().lower()
     return flag in {"1", "true", "yes", "on"} and db.is_enabled()
 
 
+def _prewarm_interval_seconds() -> float:
+    """Resolve the loop cadence in seconds.
+
+    ``PREWARM_INTERVAL_MINUTES`` (when > 0) takes precedence over
+    ``PREWARM_INTERVAL_HOURS`` (default 24h), enabling minute-level pre-warm.
+    The result is floored at :data:`PREWARM_MIN_INTERVAL_SECONDS`.
+    """
+    minutes = 0.0
+    try:
+        minutes = float(os.environ.get("PREWARM_INTERVAL_MINUTES", "0") or 0)
+    except ValueError:
+        minutes = 0.0
+
+    if minutes > 0:
+        seconds = minutes * 60.0
+    else:
+        try:
+            hours = float(os.environ.get("PREWARM_INTERVAL_HOURS", "24"))
+        except ValueError:
+            hours = 24.0
+        seconds = hours * 3600.0
+
+    return max(PREWARM_MIN_INTERVAL_SECONDS, seconds)
+
+
+def _prewarm_trailing_days() -> int:
+    try:
+        return int(os.environ.get("PREWARM_TRAILING_DAYS", "365"))
+    except ValueError:
+        return 365
+
+
 async def _prewarm_loop() -> None:
-    """Background task: warm the watchlist on boot, then every N hours.
+    """Background task: warm the watchlist on boot, then every interval.
 
     Runs in-process on the web instance (App Runner has no native cron). The
     underlying gap-fill is idempotent, so multiple instances are harmless. Each
     cycle's blocking provider calls run in a thread to avoid blocking the event
-    loop.
+    loop. Cadence is hour- or minute-level via env (see
+    :func:`_prewarm_interval_seconds`).
     """
     from .data.prewarm import run_prewarm
 
-    try:
-        interval_hours = float(os.environ.get("PREWARM_INTERVAL_HOURS", "24"))
-    except ValueError:
-        interval_hours = 24.0
-    try:
-        trailing_days = int(os.environ.get("PREWARM_TRAILING_DAYS", "365"))
-    except ValueError:
-        trailing_days = 365
+    interval_seconds = _prewarm_interval_seconds()
+    trailing_days = _prewarm_trailing_days()
 
     while True:
         try:
@@ -53,7 +84,7 @@ async def _prewarm_loop() -> None:
             log.info("prewarm cycle complete: %d entries warmed", count)
         except Exception:  # noqa: BLE001 - never let the loop die
             log.exception("prewarm cycle errored")
-        await asyncio.sleep(max(60.0, interval_hours * 3600.0))
+        await asyncio.sleep(interval_seconds)
 
 
 @asynccontextmanager

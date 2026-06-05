@@ -378,10 +378,11 @@ both of which reuse the *same* gap-fill path (and so are idempotent):
   (`python -m app.data.backfill --source binance --symbol ETH --interval 1h --start ... --end ...`,
   or `--funding` for Hyperliquid) pre-warms the store through the same gap-fill logic.
 - **Scheduled pre-warm (opt-in):** [prewarm.py](../backend/app/data/prewarm.py) is an in-process
-  loop (App Runner has no native cron) that warms a watchlist on boot and every
-  `PREWARM_INTERVAL_HOURS`. It is gated behind `PREWARM_ENABLED=1` and a configured
-  `DATABASE_URL`, and the watchlist is overridable via `PREWARM_WATCHLIST` (JSON). Because gap-fill
-  is idempotent, running it across multiple instances is safe.
+  loop (App Runner has no native cron) that warms a watchlist on boot and on a configurable
+  cadence: `PREWARM_INTERVAL_MINUTES` (minute-level, takes precedence when > 0) or
+  `PREWARM_INTERVAL_HOURS` (default 24h), floored at 60s. It is gated behind `PREWARM_ENABLED=1`
+  and a configured `DATABASE_URL`, and the watchlist is overridable via `PREWARM_WATCHLIST` (JSON).
+  Because gap-fill is idempotent, running it across multiple instances is safe.
 
 #### Operational cost (why it is opt-in)
 The cost is exactly what an MVP avoids: a running DB service, schema/migrations
