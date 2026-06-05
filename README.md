@@ -86,6 +86,30 @@ cd backend
 python -m app.run_example examples/graph_12.json --start 2024-01-01 --end 2024-06-01 --interval 1h
 ```
 
+### Optional: TimescaleDB persistence
+
+By default fetched data is cached to parquet under `backend/.cache/`. For a real
+persistence layer, set `DATABASE_URL` to a Postgres/TimescaleDB instance and the
+providers switch to a **read-through store** that fetches only missing time gaps and
+reuses every candle across overlapping ranges. If `DATABASE_URL` is unset, everything
+falls back to the parquet cache (so the hosted demo is unaffected).
+
+```bash
+# Bring up Timescale + the app locally
+docker compose up --build         # app on http://localhost:7860
+
+# Or point an existing app at a managed Timescale and run migrations
+cd backend
+export DATABASE_URL=postgresql://user:pass@host:5432/catalyst
+alembic upgrade head
+
+# Pre-warm (backfill) data into the store
+python -m app.data.backfill --source binance --symbol ETH --interval 1h \
+    --start 2024-01-01 --end 2025-01-01
+python -m app.data.backfill --source hyperliquid --symbol ETH --funding \
+    --start 2024-01-01 --end 2025-01-01
+```
+
 ## API
 
 `POST /api/backtest`
@@ -123,5 +147,7 @@ cd backend
 pytest -q
 ```
 
-Tests cover graph parsing, execution math, and a synthetic-data run of all 15
-example graphs (no network required).
+Tests cover graph parsing, execution math, a synthetic-data run of all 15
+example graphs, and the persistence layer's gap/coverage/staleness logic (no
+network required). The Timescale read-through round-trip test runs only when
+`DATABASE_URL` is set; otherwise it is skipped.

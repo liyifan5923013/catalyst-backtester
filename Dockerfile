@@ -25,9 +25,9 @@ RUN pip install --no-cache-dir -r backend/requirements.txt
 COPY backend/ ./backend/
 COPY --from=frontend /build/dist ./frontend/dist
 
-RUN chown -R user:user /home/user
+RUN chmod +x ./backend/entrypoint.sh && chown -R user:user /home/user
 USER user
 
 WORKDIR /home/user/app/backend
 EXPOSE 7860
-CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-7860}"]
+CMD ["./entrypoint.sh"]

@@ -5,5 +5,8 @@ requests==2.32.3
 pandas==2.2.3
 numpy==2.2.1
 pyarrow==18.1.0
+sqlalchemy==2.0.36
+psycopg[binary]==3.2.3
+alembic==1.14.0
 pytest==8.3.4
 httpx==0.28.1

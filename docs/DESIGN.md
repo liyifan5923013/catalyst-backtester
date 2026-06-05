@@ -49,7 +49,7 @@ frontend (input + reporting), deployed as a single Docker image.
 | Question | Decision |
 | --- | --- |
 | How is granularity set? | User picks an interval (`15m`/`1h`/`4h`/`1d`). **One candle = one tick.** |
-| How to fetch data? | Free public APIs (Binance mirror for EVM spot; Hyperliquid for HL candles + funding), cached to parquet for reproducibility. |
+| How to fetch data? | Free public APIs (Binance mirror for EVM spot; Hyperliquid for HL candles + funding). Cached to parquet by default; an opt-in TimescaleDB read-through store (`DATABASE_URL`) fetches only missing gaps. |
 | How is the engine called? | `POST /api/backtest` with `{graph, start, end, interval, initial_capital}` → `{metrics, equity_curve, trades, events}`. |
 | Gas / tx time? | Flat, configurable cost model (gas per EVM tx, fee bps, slippage bps). Fills at candle close, no latency. |
 | Failed transactions? | Balance/margin checked; insufficient funds → action skipped + `warning` event (never silent, never negative). Perps can be liquidated. |
@@ -120,15 +120,22 @@ flowchart LR
     end
     subgraph data [Data layer]
       prov[providers.py: Binance + Hyperliquid]
-      cache[cache.py: parquet]
+      repo[repository.py: read-through gap-fill]
+      store[store.py: candles/funding/coverage]
+      cache[cache.py: parquet fallback]
     end
   end
   binance[Binance klines mirror]
   hl[Hyperliquid info API]
+  ts[(TimescaleDB)]
 
   user --> form --> api --> parser --> sim
   sim --> sig --> exe --> pf --> met --> api --> dash --> user
-  sim --> prov --> cache
+  sim --> prov
+  prov -->|"DATABASE_URL set"| repo --> store --> ts
+  prov -->|"unset"| cache
+  repo -->|fetch gaps| binance
+  repo -->|fetch gaps| hl
   prov --> binance
   prov --> hl
 ```
@@ -139,7 +146,11 @@ flowchart LR
 | --- | --- |
 | [models.py](../backend/app/models.py) | Pydantic schemas: `Graph/Node/Edge`, `BacktestRequest`, `CostModel`, `BacktestResult` (`Metrics`, `EquityPoint`, `Trade`, `Event`). |
 | [data/providers.py](../backend/app/data/providers.py) | `BinanceProvider`, `HyperliquidProvider`, and `MarketData` (unified, tick-aligned prices + funding). |
-| [data/cache.py](../backend/app/data/cache.py) | Parquet cache keyed by provider/symbol/interval/range. |
+| [data/cache.py](../backend/app/data/cache.py) | Parquet cache keyed by provider/symbol/interval/range (fallback when no DB). |
+| [data/db.py](../backend/app/data/db.py) | SQLAlchemy engine + `is_enabled()` from `DATABASE_URL` (persistence is opt-in). |
+| [data/store.py](../backend/app/data/store.py) | `candles`/`funding`/`coverage` tables + upsert/get/coverage CRUD. |
+| [data/repository.py](../backend/app/data/repository.py) | Read-through cache: gap math, staleness horizon, provider gap-fill. |
+| [data/backfill.py](../backend/app/data/backfill.py) | CLI to pre-warm symbols/intervals into the store. |
 | [engine/graph.py](../backend/app/engine/graph.py) | Parse/validate graph; compute root actions, signal/action children, and data requirements. |
 | [engine/signals.py](../backend/app/engine/signals.py) | `price_threshold` evaluation + rising-edge tracking. |
 | [engine/portfolio.py](../backend/app/engine/portfolio.py) | Spot balances, `PerpPosition`, `YieldPosition`; USD valuation; yield accrual. |
@@ -195,10 +206,50 @@ An `Event` is `{t, level (info|warning|error), node_id?, message}`.
    - If a strategy has **no** price/signal nodes (e.g. yield-only), the timeline is
      **synthesized** from the date range so the run still proceeds.
 
-### Caching
-Fetched frames are written to parquet under `backend/.cache/`, keyed by
-provider/symbol/interval/range. Re-runs over the same window are offline and reproducible,
-and we stay well under public-API rate limits.
+### Caching / persistence
+Two backends, selected at runtime by `DATABASE_URL`:
+
+- **Parquet fallback (default, zero-ops).** Fetched frames are written under
+  `backend/.cache/`, keyed by provider/symbol/interval/range. Re-runs over the *same*
+  window are offline and reproducible. This keeps the public HF demo dependency-free.
+- **TimescaleDB persistence layer (opt-in).** When `DATABASE_URL` is set, providers route
+  through a **read-through repository** ([repository.py](../backend/app/data/repository.py))
+  over a real time-series store ([store.py](../backend/app/data/store.py)). This is the
+  deliberate post-MVP data layer; the trade-off it buys (and its operational cost) is below.
+
+#### Schema (Alembic migration `0001_initial`)
+- `candles(source, symbol, interval, ts, open, high, low, close, volume)`, PK
+  `(source, symbol, interval, ts)` — a Timescale **hypertable** on `ts` when the extension
+  is present (degrades to a plain table on vanilla Postgres).
+- `funding(source, symbol, ts, rate)`, PK `(source, symbol, ts)` — hypertable on `ts`.
+- `coverage(source, symbol, interval, seg_start, seg_end)` — contiguous windows already
+  fetched, so we distinguish *"fetched, genuinely empty"* (real exchange gap) from
+  *"never fetched"*. `source` is `binance` or `hyperliquid`.
+
+#### Read-through + staleness algorithm
+For a request window `[S, E]` of `(source, symbol, interval)`:
+1. Load coverage segments; subtract them from `[S, E]` to get the **missing gaps**.
+2. Define a freshness horizon `H = now − interval` (the last fully-closed candle). The live
+   tail `(H, E]` is **always** treated as a gap, so recent data refreshes every run.
+3. Fetch only the gaps from the provider, `upsert` the rows, then record coverage up to
+   `min(gap_end, H)` — the live tail is never marked covered.
+4. Read `[S, E]` back from the store and hand the same OHLCV frame shape to `MarketData`.
+
+The set arithmetic (`merge_segments`, `subtract_coverage`, `compute_gaps`) is pure and unit
+tested without a database. Net effect: each candle is fetched from the exchange **once** and
+reused across any overlapping date range, instead of re-keying a whole parquet blob per range.
+
+#### Ingestion
+- **Read-through (on demand):** the path above runs transparently during a backtest.
+- **Manual backfill:** [backfill.py](../backend/app/data/backfill.py)
+  (`python -m app.data.backfill --source binance --symbol ETH --interval 1h --start ... --end ...`,
+  or `--funding` for Hyperliquid) pre-warms the store through the same gap-fill logic.
+
+#### Operational cost (why it is opt-in)
+The cost is exactly what an MVP avoids: a running DB service, schema/migrations
+(Alembic, run on container start when `DATABASE_URL` is set), and staleness management. The
+free single-container HF Space can't persistently host Timescale, so the demo keeps the
+parquet fallback and production points `DATABASE_URL` at a managed Timescale.
 
 ---
 
@@ -277,11 +328,16 @@ Computed in [metrics.py](../backend/app/engine/metrics.py) from the equity curve
 Single Docker image ([Dockerfile](../Dockerfile)):
 1. Stage 1 (`node:20-alpine`) builds the React app.
 2. Stage 2 (`python:3.12-slim`) installs backend deps, copies the build, and runs
-   `uvicorn` serving both the API and the static SPA on port `7860`.
+   [entrypoint.sh](../backend/entrypoint.sh): if `DATABASE_URL` is set it runs
+   `alembic upgrade head` first, then launches `uvicorn` serving both the API and the static
+   SPA on port `7860`. With no `DATABASE_URL`, migrations are skipped (parquet fallback).
 
 Hosted on Hugging Face Spaces (Docker SDK; metadata in the README front-matter). The free
 Space sleeps after inactivity and cold-starts on next access. Redeploy = `git push` to the
 Space remote (or GitHub, with an optional sync action).
+
+For local dev with persistence, [docker-compose.yml](../docker-compose.yml) brings up
+`timescale/timescaledb` + the app wired via `DATABASE_URL`.
 
 ---
 
@@ -294,6 +350,8 @@ Space remote (or GitHub, with an optional sync action).
 - `test_examples.py` — runs **all 15 example graphs** against deterministic synthetic data
   (offline), asserting equity is finite/non-negative and metrics are self-consistent.
 - `test_data.py` — yield-only timeline synthesis (no network).
+- `test_persistence.py` — pure gap/coverage/staleness arithmetic (always), plus a
+  read-through round-trip integration test gated on `DATABASE_URL` (skipped offline).
 - `synthetic.py` — a sine-wave ETH price path that crosses every example threshold.
 
 ---
@@ -308,8 +366,10 @@ Space remote (or GitHub, with an optional sync action).
   balance are skipped (no partial fill); perp closes snap sub-$1 dust and support `"all"`.
 - **Single-asset focus**: examples are ETH; the engine generalizes to other symbols but is
   untested beyond ETH/USDC.
-- **No persistence/auth**: runs are stateless and synchronous.
+- **No run persistence/auth**: backtest runs themselves are stateless and synchronous (the
+  Timescale layer persists *market data*, not run results).
 
-Possible next steps: pluggable data providers + a backfilled local store; a job queue for
-long/large runs; protocol-accurate yield and funding; richer signals (indicators, time-based,
-cross-asset); position-sizing as % of equity; saved/shareable backtests; and parameter sweeps.
+Possible next steps: a job queue for long/large runs; protocol-accurate yield and funding;
+richer signals (indicators, time-based, cross-asset); position-sizing as % of equity;
+saved/shareable backtests; Timescale continuous aggregates/retention policies for the store;
+and parameter sweeps.

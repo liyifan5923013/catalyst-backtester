@@ -55,6 +55,20 @@ def to_ms(iso: str) -> int:
     return int(dt.timestamp() * 1000)
 
 
+def _ms_to_dt(ms: int) -> datetime:
+    return datetime.fromtimestamp(ms / 1000.0, tz=timezone.utc)
+
+
+def _persistence_enabled() -> bool:
+    """True when DATABASE_URL is configured (and the DB deps import cleanly)."""
+    try:
+        from . import db
+
+        return db.is_enabled()
+    except Exception:  # noqa: BLE001 - missing deps -> fall back to parquet
+        return False
+
+
 def _empty_ohlcv() -> pd.DataFrame:
     return pd.DataFrame(columns=["open", "high", "low", "close", "volume"])
 
@@ -63,12 +77,32 @@ class BinanceProvider:
     """Fetches spot OHLCV from Binance (max 1000 candles/request, paginated)."""
 
     def fetch(self, symbol: str, interval: str, start_ms: int, end_ms: int) -> pd.DataFrame:
+        if _persistence_enabled():
+            from .repository import MarketRepository
+
+            return MarketRepository().get_candles(
+                source="binance",
+                symbol=symbol,
+                interval=interval,
+                start=_ms_to_dt(start_ms),
+                end=_ms_to_dt(end_ms),
+                fetcher=self._fetch_raw,
+                interval_ms=INTERVAL_MS[interval],
+            )
+
         pair = f"{symbol.upper()}USDT"
         key = f"binance_{pair}_{interval}_{start_ms}_{end_ms}"
         cached = cache.load(key)
         if cached is not None:
             return cached
+        df = self._fetch_raw(symbol, interval, start_ms, end_ms)
+        cache.store(key, df)
+        return df
 
+    def _fetch_raw(self, symbol: str, interval: str, start_ms: int, end_ms: int) -> pd.DataFrame:
+        """Paginated Binance klines fetch with no caching (the cache/store layer
+        decides whether and how to persist)."""
+        pair = f"{symbol.upper()}USDT"
         step = INTERVAL_MS[interval]
         base = self._pick_base(pair, interval)
         rows: List[list] = []
@@ -93,9 +127,7 @@ class BinanceProvider:
                 break
             time.sleep(0.05)
 
-        df = self._to_frame(rows)
-        cache.store(key, df)
-        return df
+        return self._to_frame(rows)
 
     @staticmethod
     def _pick_base(pair: str, interval: str) -> str:
@@ -142,11 +174,29 @@ class HyperliquidProvider:
     """Fetches perp/spot candles and funding from the Hyperliquid info API."""
 
     def fetch_candles(self, coin: str, interval: str, start_ms: int, end_ms: int) -> pd.DataFrame:
+        if _persistence_enabled():
+            from .repository import MarketRepository
+
+            return MarketRepository().get_candles(
+                source="hyperliquid",
+                symbol=coin,
+                interval=interval,
+                start=_ms_to_dt(start_ms),
+                end=_ms_to_dt(end_ms),
+                fetcher=self._fetch_candles_raw,
+                interval_ms=INTERVAL_MS[interval],
+            )
+
         key = f"hl_{coin.upper()}_{interval}_{start_ms}_{end_ms}"
         cached = cache.load(key)
         if cached is not None:
             return cached
+        df = self._fetch_candles_raw(coin, interval, start_ms, end_ms)
+        cache.store(key, df)
+        return df
 
+    def _fetch_candles_raw(self, coin: str, interval: str, start_ms: int, end_ms: int) -> pd.DataFrame:
+        """Paginated Hyperliquid candleSnapshot fetch with no caching."""
         step = INTERVAL_MS[interval]
         # Stay under the 5000-candle cap per request.
         window = step * 4800
@@ -174,16 +224,32 @@ class HyperliquidProvider:
             cursor = max(last_open + step, req_end + step)
             time.sleep(0.05)
 
-        df = self._candles_to_frame(rows)
-        cache.store(key, df)
-        return df
+        return self._candles_to_frame(rows)
 
     def fetch_funding(self, coin: str, start_ms: int, end_ms: int) -> pd.DataFrame:
+        if _persistence_enabled():
+            from .repository import MarketRepository
+
+            # Funding posts every 8h; use that as the freshness interval.
+            return MarketRepository().get_funding(
+                source="hyperliquid",
+                symbol=coin,
+                start=_ms_to_dt(start_ms),
+                end=_ms_to_dt(end_ms),
+                fetcher=self._fetch_funding_raw,
+                interval_ms=INTERVAL_MS["4h"] * 2,
+            )
+
         key = f"hlfund_{coin.upper()}_{start_ms}_{end_ms}"
         cached = cache.load(key)
         if cached is not None:
             return cached
+        df = self._fetch_funding_raw(coin, start_ms, end_ms)
+        cache.store(key, df)
+        return df
 
+    def _fetch_funding_raw(self, coin: str, start_ms: int, end_ms: int) -> pd.DataFrame:
+        """Paginated Hyperliquid fundingHistory fetch with no caching."""
         rows: List[dict] = []
         cursor = start_ms
         # fundingHistory returns chronological pages; advance by last time.
@@ -201,9 +267,7 @@ class HyperliquidProvider:
             cursor = last_time + 1
             time.sleep(0.05)
 
-        df = self._funding_to_frame(rows)
-        cache.store(key, df)
-        return df
+        return self._funding_to_frame(rows)
 
     @staticmethod
     def _candles_to_frame(rows: List[dict]) -> pd.DataFrame:
