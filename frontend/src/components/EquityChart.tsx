@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import {
   CartesianGrid,
   Legend,
@@ -20,6 +21,16 @@ const axisColor = "#8b93a7";
 
 export function EquityChart({ data, comparison, comparisonLabel }: Props) {
   const comparing = !!comparison && comparison.length > 0;
+  const [expanded, setExpanded] = useState(false);
+
+  useEffect(() => {
+    if (!expanded) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setExpanded(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [expanded]);
 
   const chartData = data.map((p, i) => ({
     t: p.t.slice(0, 16).replace("T", " "),
@@ -34,16 +45,29 @@ export function EquityChart({ data, comparison, comparisonLabel }: Props) {
   const cmpName = `Equity · ${comparisonLabel ?? "comparison"}`;
 
   return (
-    <div className="chart-card">
-      <div className="chart-head">
-        <h3>Portfolio equity</h3>
-        <span className="chart-sub">
-          {comparing
-            ? "Two periods overlaid by elapsed time (aligned at start). Times in UTC."
-            : "Mark-to-market account value over time. Times in UTC."}
-        </span>
-      </div>
-      <ResponsiveContainer width="100%" height={340}>
+    <>
+      {expanded && <div className="chart-overlay" onClick={() => setExpanded(false)} />}
+      <div className={`chart-card ${expanded ? "chart-fullscreen" : ""}`}>
+        <div className="chart-head">
+          <div className="chart-head-text">
+            <h3>Portfolio equity</h3>
+            <span className="chart-sub">
+              {comparing
+                ? "Two periods overlaid by elapsed time (aligned at start). Times in UTC."
+                : "Mark-to-market account value over time. Times in UTC."}
+            </span>
+          </div>
+          <button
+            type="button"
+            className="chart-expand"
+            onClick={() => setExpanded((v) => !v)}
+            title={expanded ? "Exit fullscreen (Esc)" : "View fullscreen"}
+          >
+            {expanded ? "✕ Close" : "⤢ Fullscreen"}
+          </button>
+        </div>
+        <div className="chart-body">
+          <ResponsiveContainer width="100%" height={expanded ? "100%" : 340}>
         <LineChart data={chartData} margin={{ top: 10, right: 56, left: 16, bottom: 28 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#2a2f3a" />
           <XAxis
@@ -128,8 +152,10 @@ export function EquityChart({ data, comparison, comparisonLabel }: Props) {
             name="ETH price"
             strokeDasharray="4 3"
           />
-        </LineChart>
-      </ResponsiveContainer>
-    </div>
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+    </>
   );
 }
