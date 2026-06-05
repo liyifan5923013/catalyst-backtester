@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Catalyst Backtesting Engine — What We Built</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --panel: #161b22;
+    --panel2: #1c2330;
+    --border: #2d3748;
+    --text: #e6edf3;
+    --muted: #9aa7b4;
+    --accent: #4ade80;
+    --accent2: #60a5fa;
+    --chip: #21304a;
+    --warn: #fbbf24;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  a { color: var(--accent2); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .wrap { max-width: 1040px; margin: 0 auto; padding: 0 24px; }
+
+  header.hero {
+    border-bottom: 1px solid var(--border);
+    background: linear-gradient(180deg, #11202b 0%, var(--bg) 100%);
+    padding: 56px 0 40px;
+  }
+  .eyebrow { color: var(--accent); font-weight: 600; letter-spacing: .08em; text-transform: uppercase; font-size: 13px; }
+  h1 { font-size: 40px; margin: 10px 0 8px; line-height: 1.15; }
+  .tagline { color: var(--muted); font-size: 19px; max-width: 760px; margin: 0 0 24px; }
+  .btns { display: flex; gap: 12px; flex-wrap: wrap; }
+  .btn {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 10px 18px; border-radius: 8px; font-weight: 600; font-size: 15px;
+    border: 1px solid var(--border); background: var(--panel); color: var(--text);
+  }
+  .btn.primary { background: var(--accent); color: #06240f; border-color: var(--accent); }
+  .btn:hover { text-decoration: none; border-color: var(--accent2); }
+
+  section { padding: 40px 0; border-bottom: 1px solid var(--border); }
+  h2 { font-size: 26px; margin: 0 0 6px; }
+  h2 .num { color: var(--accent); font-size: 16px; margin-right: 10px; font-variant-numeric: tabular-nums; }
+  .sub { color: var(--muted); margin: 0 0 22px; }
+
+  .grid { display: grid; gap: 16px; }
+  .grid.c2 { grid-template-columns: 1fr 1fr; }
+  .grid.c3 { grid-template-columns: repeat(3, 1fr); }
+  .card { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 18px 20px; }
+  .card h3 { margin: 0 0 6px; font-size: 17px; }
+  .card p { margin: 0; color: var(--muted); font-size: 14.5px; }
+
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+  .chip { background: var(--chip); color: #cfe0ff; border: 1px solid #2c416b;
+          border-radius: 999px; padding: 5px 12px; font-size: 13px; font-weight: 500; }
+
+  .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+  .stat { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 16px; text-align: center; }
+  .stat .n { font-size: 26px; font-weight: 700; color: var(--accent); }
+  .stat .l { font-size: 13px; color: var(--muted); }
+
+  /* diagram */
+  .diagram { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 24px; overflow-x: auto; }
+  .flow { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .flow + .flow { margin-top: 16px; }
+  .node {
+    background: var(--panel2); border: 1px solid var(--border); border-radius: 9px;
+    padding: 10px 14px; font-size: 13.5px; font-weight: 600; white-space: nowrap;
+  }
+  .node .meta { display: block; font-weight: 400; color: var(--muted); font-size: 12px; }
+  .node.accent { border-color: var(--accent); }
+  .node.blue { border-color: var(--accent2); }
+  .node.warn { border-color: var(--warn); }
+  .arrow { color: var(--muted); font-size: 18px; }
+  .arrow .lbl { display:block; font-size: 11px; }
+  .vpc { border: 1px dashed #3b82f6; border-radius: 12px; padding: 16px; margin-top: 8px; position: relative; }
+  .vpc .tag { position: absolute; top: -10px; left: 14px; background: var(--bg); padding: 0 8px; font-size: 12px; color: var(--accent2); }
+
+  ul.tight { margin: 0; padding-left: 20px; }
+  ul.tight li { margin: 6px 0; color: var(--muted); }
+  ul.tight li b { color: var(--text); font-weight: 600; }
+
+  .challenge { background: var(--panel); border: 1px solid var(--border); border-left: 3px solid var(--accent); border-radius: 8px; padding: 14px 18px; }
+  .challenge h3 { margin: 0 0 4px; font-size: 15.5px; }
+  .challenge p { margin: 0; color: var(--muted); font-size: 14px; }
+  .challenge .fix { color: var(--accent); font-weight: 600; }
+
+  code { background: #0b1220; border: 1px solid var(--border); border-radius: 5px; padding: 1px 6px; font-size: 13px; color: #cbd5e1; }
+  footer { padding: 30px 0 60px; color: var(--muted); font-size: 13px; }
+
+  @media (max-width: 760px) {
+    .grid.c2, .grid.c3 { grid-template-columns: 1fr; }
+    .stats { grid-template-columns: repeat(2, 1fr); }
+    h1 { font-size: 30px; }
+  }
+  @media print {
+    body { background: #fff; color: #111; }
+    header.hero { background: #fff; }
+    .card, .stat, .diagram, .node, .challenge { background: #fff; border-color: #ccc; }
+    a { color: #111; }
+    .btns { display: none; }
+    section { break-inside: avoid; }
+  }
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="wrap">
+    <div class="eyebrow">Take-home build · Full-stack + infra</div>
+    <h1>Catalyst Backtesting Engine</h1>
+    <p class="tagline">
+      Replays Catalyst strategy <b>graphs</b> (swaps, perps, yields, signals) tick-by-tick against
+      real historical market data and reports performance — built as a FastAPI + React app with an
+      optional time-series persistence layer, deployed to AWS via Terraform and CI/CD.
+    </p>
+    <div class="btns">
+      <a class="btn primary" href="https://qkz2sj2ca6.us-east-1.awsapprunner.com" target="_blank" rel="noopener">▶ Live demo</a>
+      <a class="btn" href="https://github.com/liyifan5923013/catalyst-backtester" target="_blank" rel="noopener">★ GitHub repo</a>
+    </div>
+  </div>
+</header>
+
+<section>
+  <div class="wrap">
+    <div class="stats">
+      <div class="stat"><div class="n">4</div><div class="l">action types: swap · perp · yield · signal</div></div>
+      <div class="stat"><div class="n">15</div><div class="l">example strategy graphs</div></div>
+      <div class="stat"><div class="n">49</div><div class="l">automated tests passing</div></div>
+      <div class="stat"><div class="n">1</div><div class="l">image → HF demo &amp; AWS prod</div></div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <h2><span class="num">01</span>What it does</h2>
+    <p class="sub">A strategy graph + a time window in, a full performance report out.</p>
+    <div class="grid c3">
+      <div class="card"><h3>Graph interpreter</h3><p>Parses Catalyst nodes/edges. Root actions fire at t0; <code>signal → action</code> fires on a rising edge and re-arms; <code>action → action</code> chains run sequentially.</p></div>
+      <div class="card"><h3>Tick-loop simulator</h3><p>One candle = one tick. Each tick accrues yield, applies funding, checks liquidations, evaluates signals, executes triggered actions, records equity.</p></div>
+      <div class="card"><h3>Execution models</h3><p>Spot swaps (EVM + Hyperliquid), leveraged perps with 8h funding &amp; liquidation, and fixed-APY yield — all with modeled gas/fees/slippage.</p></div>
+      <div class="card"><h3>Accurate PnL</h3><p>Spot cost-basis tracking for realized PnL, perp mark-to-market, liquidations recorded as synthetic trades so the log and metrics reconcile.</p></div>
+      <div class="card"><h3>Metrics</h3><p>Total return, max drawdown, Sharpe (clamped), win rate, fees — plus an equity curve, trade log, and lifecycle events.</p></div>
+      <div class="card"><h3>Robustness</h3><p>Atomic execution (validate before mutating), insufficient-funds → skip + warning, per-action try/except so one bad node never aborts the run.</p></div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <h2><span class="num">02</span>Architecture</h2>
+    <p class="sub">Single Docker image serves the API and the built SPA. Data layer is pluggable.</p>
+
+    <div class="diagram">
+      <div class="flow">
+        <span class="node blue">Browser</span>
+        <span class="arrow">→</span>
+        <span class="node">React SPA <span class="meta">Vite · TS · Recharts</span></span>
+        <span class="arrow">→<span class="lbl">/api</span></span>
+        <span class="node accent">FastAPI <span class="meta">graph · simulator · execution</span></span>
+        <span class="arrow">→</span>
+        <span class="node">Data layer <span class="meta">providers · MarketData</span></span>
+        <span class="arrow">→</span>
+        <span class="node">Binance / Hyperliquid</span>
+      </div>
+      <div class="flow">
+        <span class="node" style="visibility:hidden">Browser</span>
+        <span class="arrow" style="visibility:hidden">→</span>
+        <span class="node" style="visibility:hidden">React SPA</span>
+        <span class="arrow" style="visibility:hidden">→</span>
+        <span class="node">Data layer</span>
+        <span class="arrow">→<span class="lbl">if DATABASE_URL</span></span>
+        <span class="node warn">Read-through store <span class="meta">gap-fill · coverage</span></span>
+        <span class="arrow">→</span>
+        <span class="node warn">Postgres / Timescale</span>
+      </div>
+    </div>
+
+    <h3 style="margin:26px 0 10px; font-size:18px;">Deployed on AWS (Terraform + CI/CD)</h3>
+    <div class="diagram">
+      <div class="flow">
+        <span class="node">GitHub Actions <span class="meta">OIDC, no static keys</span></span>
+        <span class="arrow">→<span class="lbl">build/push</span></span>
+        <span class="node">ECR</span>
+        <span class="arrow">→<span class="lbl">auto-deploy</span></span>
+        <span class="node accent">App Runner</span>
+      </div>
+      <div class="vpc">
+        <span class="tag">Default VPC</span>
+        <div class="flow">
+          <span class="node accent">App Runner <span class="meta">API + SPA, HTTPS</span></span>
+          <span class="arrow">→<span class="lbl">:5432</span></span>
+          <span class="node warn">RDS Postgres</span>
+        </div>
+        <div class="flow">
+          <span class="node accent" style="visibility:hidden">App Runner</span>
+          <span class="arrow">→<span class="lbl">VPC connector</span></span>
+          <span class="node">NAT instance <span class="meta">t4g.nano</span></span>
+          <span class="arrow">→<span class="lbl">IGW</span></span>
+          <span class="node">Binance / Hyperliquid</span>
+        </div>
+      </div>
+      <p style="margin:14px 0 0; color:var(--muted); font-size:13px;">
+        <code>DATABASE_URL</code> injected from Secrets Manager · migrations run on container start.
+      </p>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <h2><span class="num">03</span>Persistence layer (post-MVP data layer)</h2>
+    <p class="sub">Opt-in via <code>DATABASE_URL</code>; falls back to a parquet cache so the demo stays zero-ops.</p>
+    <div class="grid c2">
+      <div class="card"><h3>Read-through caching</h3><p>A backtest serves cached candles/funding from the store and fetches only the <b>missing time gaps</b> from the providers, then persists them. Each candle is fetched once and reused across any overlapping range.</p></div>
+      <div class="card"><h3>Coverage + staleness</h3><p>Coverage segments distinguish "fetched but empty" from "never fetched". A freshness horizon (<code>now − interval</code>) always refreshes the still-forming tail. The set arithmetic is pure and unit-tested.</p></div>
+      <div class="card"><h3>Schema + migrations</h3><p>Alembic creates <code>candles</code> / <code>funding</code> / <code>coverage</code>; promotes to <b>Timescale hypertables</b> when the extension exists, degrades to plain Postgres (RDS) otherwise.</p></div>
+      <div class="card"><h3>Backfill CLI</h3><p><code>python -m app.data.backfill …</code> pre-warms symbols/intervals through the same gap-fill path. Local dev runs Postgres via docker-compose.</p></div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <h2><span class="num">04</span>Engineering challenges solved</h2>
+    <p class="sub">The interesting parts — design calls and real bugs hit along the way.</p>
+    <div class="grid c2">
+      <div class="challenge"><h3>Repeating strategies</h3><p>Signals fire on a <b>rising edge and re-arm</b> on reset, so a rung fires once per threshold crossing — not every tick. <span class="fix">→ correct round-trip behavior.</span></p></div>
+      <div class="challenge"><h3>Geo-blocked data</h3><p>Binance's main API returns HTTP 451 in some regions. <span class="fix">→ provider probes &amp; falls back across data-api.binance.vision → binance.us.</span></p></div>
+      <div class="challenge"><h3>Yield-only &amp; Sharpe blow-ups</h3><p>No-price strategies had no timeline; near-zero volatility gave absurd Sharpe. <span class="fix">→ synthesize a timeline; clamp Sharpe to ±100.</span></p></div>
+      <div class="challenge"><h3>New AWS account blocked</h3><p>Free Plan blocks App Runner &amp; restricts RDS. <span class="fix">→ upgrade to paid plan (surfaced clearly, not silently worked around).</span></p></div>
+      <div class="challenge"><h3>App Runner egress trap</h3><p>A VPC connector routes <b>all</b> egress through the VPC → no internet for data fetches. <span class="fix">→ private subnets through a cheap NAT instance.</span></p></div>
+      <div class="challenge"><h3>Terraform data-source loop</h3><p><code>aws_subnets</code> began including the subnets it was creating, placing the NAT in a private subnet. <span class="fix">→ restrict with the default-for-az filter.</span></p></div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <h2><span class="num">05</span>Tech stack</h2>
+    <p class="sub">Boring, well-understood tools chosen deliberately.</p>
+    <div class="chips">
+      <span class="chip">Python</span><span class="chip">FastAPI</span><span class="chip">Pydantic</span>
+      <span class="chip">pandas / NumPy</span><span class="chip">SQLAlchemy</span><span class="chip">Alembic</span>
+      <span class="chip">PostgreSQL / TimescaleDB</span><span class="chip">React</span><span class="chip">TypeScript</span>
+      <span class="chip">Vite</span><span class="chip">Recharts</span><span class="chip">Docker</span>
+      <span class="chip">Terraform / OpenTofu</span><span class="chip">AWS App Runner</span><span class="chip">RDS</span>
+      <span class="chip">ECR</span><span class="chip">Secrets Manager</span><span class="chip">GitHub Actions (OIDC)</span>
+      <span class="chip">pytest</span>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <h2><span class="num">06</span>Testing &amp; what's next</h2>
+    <div class="grid c2">
+      <div class="card">
+        <h3>Testing — 49 tests, no network</h3>
+        <ul class="tight">
+          <li><b>Graph:</b> parsing, trigger structure, validation errors</li>
+          <li><b>Execution:</b> swap/perp/yield math, insufficient-funds paths</li>
+          <li><b>Examples:</b> all 15 graphs on deterministic synthetic data</li>
+          <li><b>Persistence:</b> gap/coverage/staleness logic + DB-gated round-trip</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>What I'd do next</h3>
+        <ul class="tight">
+          <li>Job queue for long/large backtest runs</li>
+          <li>Protocol-accurate yield &amp; funding curves</li>
+          <li>Richer signals (indicators, time-based, cross-asset)</li>
+          <li>Timescale continuous aggregates &amp; retention policies</li>
+          <li>Saved/shareable backtests &amp; parameter sweeps</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    Catalyst Backtesting Engine ·
+    <a href="https://qkz2sj2ca6.us-east-1.awsapprunner.com" target="_blank" rel="noopener">live demo</a> ·
+    <a href="https://github.com/liyifan5923013/catalyst-backtester" target="_blank" rel="noopener">github.com/liyifan5923013/catalyst-backtester</a> ·
+    full design doc in <code>docs/DESIGN.md</code>
+  </div>
+</footer>
+
+</body>
+</html>

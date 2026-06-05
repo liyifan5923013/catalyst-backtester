@@ -332,12 +332,57 @@ Single Docker image ([Dockerfile](../Dockerfile)):
    `alembic upgrade head` first, then launches `uvicorn` serving both the API and the static
    SPA on port `7860`. With no `DATABASE_URL`, migrations are skipped (parquet fallback).
 
-Hosted on Hugging Face Spaces (Docker SDK; metadata in the README front-matter). The free
-Space sleeps after inactivity and cold-starts on next access. Redeploy = `git push` to the
-Space remote (or GitHub, with an optional sync action).
+### Hosting targets
+The same image runs two ways:
+
+- **Hugging Face Spaces** (zero-ops demo): Docker SDK, no `DATABASE_URL`, so it uses the
+  parquet fallback. Free, sleeps on inactivity.
+- **AWS (production)**: App Runner + RDS Postgres, provisioned by Terraform in
+  [deploy/](../deploy). This is the live deployment.
+
+### AWS topology ([deploy/terraform](../deploy/terraform))
+
+```mermaid
+flowchart LR
+  user[Browser]
+  gha[GitHub Actions]
+  ecr[ECR]
+  user -->|HTTPS| ar
+  gha -->|OIDC: build + push :latest| ecr
+  ecr -->|auto-deploy| ar
+  subgraph vpc [Default VPC]
+    ar["App Runner (API + SPA)"]
+    sm[Secrets Manager: DATABASE_URL]
+    nat["NAT instance (t4g.nano)"]
+    rds[(RDS Postgres)]
+    ar -->|runtime secret| sm
+    ar -->|VPC connector, private subnets| nat
+    ar -->|":5432"| rds
+    nat -->|IGW| ext[Binance / Hyperliquid]
+  end
+```
+
+Key points:
+- App Runner uses a **VPC connector** to reach private RDS; since that routes all egress
+  through the VPC, a small **NAT instance** gives the connector internet access for
+  market-data fetches (≈10x cheaper than a managed NAT Gateway).
+- `DATABASE_URL` is injected from **Secrets Manager**; [entrypoint.sh](../backend/entrypoint.sh)
+  runs `alembic upgrade head` on start.
+- RDS is **plain Postgres** (no Timescale extension on RDS); the schema degrades to regular
+  tables. Point `DATABASE_URL` at Timescale Cloud to get hypertables, no code change.
+- **CI/CD** ([.github/workflows/deploy.yml](../.github/workflows/deploy.yml)): push to `main`
+  → GitHub OIDC (no static keys) → build/push to ECR → App Runner auto-deploys.
+
+### Deploy gotchas worth knowing (encountered and solved)
+- New AWS accounts default to the **Free Plan**, which blocks App Runner + restricts RDS;
+  the account must be upgraded to a paid plan.
+- App Runner is **not available in every AZ** (e.g. `use1-az3` in us-east-1); unsupported
+  AZs are excluded from the connector subnets.
+- App Runner with a VPC connector has **no internet** without a NAT in the connector's
+  subnets (the cause of market-data timeouts until the NAT instance was added).
 
 For local dev with persistence, [docker-compose.yml](../docker-compose.yml) brings up
-`timescale/timescaledb` + the app wired via `DATABASE_URL`.
+Postgres + the app wired via `DATABASE_URL`.
 
 ---
 
